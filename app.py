@@ -26,24 +26,20 @@ GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
 
 if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
-    logger.error("⚠️ GOOGLE_CLIENT_ID o GOOGLE_CLIENT_SECRET no están configurados!")
+    logger.error("GOOGLE_CLIENT_ID o GOOGLE_CLIENT_SECRET no están configurados!")
 else:
-    logger.info("✅ Credenciales OAuth encontradas")
+    logger.info("Credenciales OAuth encontradas")
 
 # Configurar OAuth
 oauth = OAuth(app)
 
 # Función para obtener la URL base correcta
 def get_base_url():
-    # Para Hugging Face Spaces - siempre usar HTTPS
-    if 'hf.space' in request.headers.get('Host', ''):
-        return f"https://{request.headers.get('Host')}"
-    
-    # Si hay header X-Forwarded-Proto (proxy) - forzar HTTPS
+    # Para Railway u otros servicios
     if request.headers.get('X-Forwarded-Proto'):
         return f"https://{request.headers.get('Host', '')}"
     
-    # Para cualquier entorno con proxy, usar HTTPS por defecto
+    # Obtener la URL del entorno de Railway
     host = request.headers.get('Host', request.host)
     return f"https://{host}"
 
@@ -59,20 +55,20 @@ try:
         server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
         client_kwargs={
             'scope': 'openid email profile',
-            'prompt': 'select_account'  # Forzar selección de cuenta
+            'prompt': 'select_account'
         }
     )
-    logger.info("✅ Google OAuth registrado correctamente")
+    logger.info("Google OAuth registrado correctamente")
 except Exception as e:
-    logger.error(f"❌ Error registrando OAuth: {str(e)}")
+    logger.error(f"Error registrando OAuth: {str(e)}")
     google = None
 
 # Inicializar el bot
 try:
     bot = RiquerChatBot()
-    logger.info("✅ Bot inicializado correctamente")
+    logger.info("Bot inicializado correctamente")
 except Exception as e:
-    logger.error(f"❌ Error inicializando bot: {str(e)}")
+    logger.error(f"Error inicializando bot: {str(e)}")
     bot = None
 
 # Decorator para requerir login
@@ -84,30 +80,25 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Ruta de login mejorada con manejo de errores
+# Ruta de login
 @app.route('/login')
 def login():
-    # Si ya está logueado, redirigir al chat
     if 'user' in session:
         return redirect(url_for('index'))
     
-    # Verificar si hay error de OAuth
     error = request.args.get('error')
     error_description = request.args.get('error_description', '')
     
     if error:
         logger.error(f"OAuth error: {error} - {error_description}")
     
-    # Verificar configuración
     oauth_configured = bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET)
     
-    # Crear página de login con información de estado
     base_url = get_base_url()
     default_error_text = "Error d'autenticació amb Google"
     error_msg = f'<div class="error-message">Error: {error_description or default_error_text}</div>' if error else ''
-    warning_msg = '<div class="warning-message">⚠️ OAuth no està configurat correctament. Comprova les variables d\'entorn.</div>' if not oauth_configured else ''
+    warning_msg = '<div class="warning-message">OAuth no està configurat correctament. Comprova les variables d\'entorn.</div>' if not oauth_configured else ''
     disabled_style = 'style="pointer-events: none; opacity: 0.5;"' if not oauth_configured else ''
-    oauth_status = '✅ Sí' if oauth_configured else '❌ No'
     
     return f'''
     <!DOCTYPE html>
@@ -169,10 +160,6 @@ def login():
                 border-color: #4285f4;
                 box-shadow: 0 2px 8px rgba(66, 133, 244, 0.3);
             }}
-            .google-btn:disabled {{
-                opacity: 0.5;
-                cursor: not-allowed;
-            }}
             .google-icon {{
                 width: 20px;
                 height: 20px;
@@ -200,15 +187,6 @@ def login():
                 color: #856404;
                 font-size: 14px;
             }}
-            .debug-info {{
-                background: #f0f0f0;
-                border-radius: 8px;
-                padding: 12px;
-                margin-top: 20px;
-                font-size: 12px;
-                color: #666;
-                text-align: left;
-            }}
         </style>
     </head>
     <body>
@@ -219,7 +197,6 @@ def login():
                 <p class="login-subtitle">Inicia sessió per accedir al xat de l'Institut</p>
                 
                 {error_msg}
-                
                 {warning_msg}
                 
                 <a href="/auth/google" class="google-btn" {disabled_style}>
@@ -235,14 +212,13 @@ def login():
                 <p class="info-text">
                     En iniciar sessió, acceptes que s'utilitzi el teu nom i correu per personalitzar l'experiència del xat.
                 </p>
-                
             </div>
         </div>
     </body>
     </html>
     '''
 
-# Callback de Google OAuth con mejor gestión de errores
+# Callback de Google OAuth
 @app.route('/auth/google')
 def google_auth():
     if not google:
@@ -250,21 +226,11 @@ def google_auth():
         return redirect(url_for('login', error='oauth_not_configured'))
     
     try:
-        # Obtener URL base dinámica - forzar HTTPS para Hugging Face
         base_url = get_base_url()
         redirect_uri = f"{base_url}/auth/google/callback"
         
-        logger.info(f"=== OAuth Request ===")
-        logger.info(f"Host header: {request.headers.get('Host')}")
-        logger.info(f"X-Forwarded-Proto: {request.headers.get('X-Forwarded-Proto')}")
-        logger.info(f"Base URL calculada: {base_url}")
+        logger.info(f"OAuth Request - Base URL: {base_url}")
         logger.info(f"Redirect URI: {redirect_uri}")
-        logger.info(f"===================")
-        
-        # Forzar redirect_uri específico para Hugging Face
-        if 'hf.space' in request.headers.get('Host', ''):
-            redirect_uri = f"https://{request.headers.get('Host')}/auth/google/callback"
-            logger.info(f"URI forzada para HF: {redirect_uri}")
         
         return google.authorize_redirect(redirect_uri)
     except Exception as e:
@@ -278,19 +244,15 @@ def google_callback():
     
     try:
         token = google.authorize_access_token()
-        
-        # El token incluye la información del usuario
         user_info = token.get('userinfo')
         
         if not user_info:
-            # Si no hay userinfo en el token, intentar obtenerla
             resp = google.get('userinfo')
             user_info = resp.json()
         
         if user_info:
             email = user_info.get('email', '')
             
-            # Guardar información del usuario en la sesión
             session['user'] = {
                 'email': email,
                 'name': user_info.get('name', ''),
@@ -298,14 +260,14 @@ def google_callback():
                 'given_name': user_info.get('given_name', '')
             }
             
-            logger.info(f"✅ Usuario autenticado: {email}")
+            logger.info(f"Usuario autenticado: {email}")
             return redirect(url_for('index'))
         else:
             logger.error("No se pudo obtener información del usuario")
             return redirect(url_for('login', error='no_user_info'))
             
     except Exception as e:
-        logger.error(f"❌ Error en OAuth callback: {str(e)}")
+        logger.error(f"Error en OAuth callback: {str(e)}")
         return redirect(url_for('login', error='callback_error', error_description=str(e)))
 
 # Ruta de logout
@@ -314,34 +276,11 @@ def logout():
     session.clear()
     return redirect(url_for('login'))
 
-# Ruta principal - servir el HTML
+# Ruta principal
 @app.route('/')
 @login_required
 def index():
     return render_template('index_oauth.html', user=session['user'])
-
-# Ruta de debug mejorada
-@app.route('/debug')
-def debug():
-    return jsonify({
-        'status': 'ok',
-        'base_url': get_base_url(),
-        'host': request.headers.get('Host'),
-        'x_forwarded_proto': request.headers.get('X-Forwarded-Proto'),
-        'x_forwarded_host': request.headers.get('X-Forwarded-Host'),
-        'full_url': request.url,
-        'redirect_uri': f"{get_base_url()}/auth/google/callback",
-        'oauth_configured': bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
-        'client_id_exists': bool(GOOGLE_CLIENT_ID),
-        'client_secret_exists': bool(GOOGLE_CLIENT_SECRET),
-        'environment': 'Hugging Face Spaces' if 'hf.space' in request.headers.get('Host', '') else 'Local',
-        'all_headers': dict(request.headers)
-    })
-
-# Ruta para archivos estáticos
-@app.route('/static/<path:path>')
-def send_static(path):
-    return send_from_directory('static', path)
 
 # API endpoint para el chat
 @app.route('/api/chat', methods=['POST'])
@@ -357,14 +296,12 @@ def chat():
         data = request.json
         message = data.get('message', '')
         
-        # Usar datos del usuario autenticado
         user = session.get('user', {})
         user_data = {
             'nom': user.get('name', 'Usuari'),
             'contacte': user.get('email', '')
         }
         
-        # Procesar mensaje con el bot
         response = bot.process_message(message, user_data)
         
         return jsonify({
@@ -385,7 +322,6 @@ def chat():
 @app.route('/api/teachers')
 @login_required
 def get_teachers():
-    """Endpoint para obtener la lista de profesores"""
     if not bot:
         return jsonify({
             'status': 'error',
@@ -404,7 +340,7 @@ def get_teachers():
             'status': 'error',
             'error': str(e)
         }), 500
-    
+
 # API endpoint para cambiar idioma
 @app.route('/api/language', methods=['POST'])
 @login_required
@@ -413,7 +349,6 @@ def set_language():
         data = request.json
         language = data.get('language', 'ca')
         
-        # Guardar preferencia de idioma en la sesión
         session['language'] = language
         
         return jsonify({
@@ -434,21 +369,18 @@ def set_language():
 def get_user():
     return jsonify(session.get('user', {}))
 
-# Ruta para el logo
-@app.route('/logo.png')
-def logo():
-    if os.path.exists('static/logo.png'):
-        return send_from_directory('static', 'logo.png')
-    else:
-        return '', 404
+# Ruta para archivos estáticos
+@app.route('/static/<path:path>')
+def send_static(path):
+    return send_from_directory('static', path)
 
-# Health check mejorado
+# Health check
 @app.route('/api/health')
 def health():
     return jsonify({
         'status': 'ok', 
         'service': 'Riquer Chat Bot with OAuth',
-        'environment': 'Hugging Face Spaces' if 'hf.space' in request.headers.get('Host', '') else 'Local',
+        'environment': 'Railway',
         'oauth_configured': bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
         'bot_initialized': bot is not None
     })
@@ -463,7 +395,7 @@ def server_error(e):
     logger.error(f"Server error: {str(e)}")
     return jsonify({'error': 'Internal server error'}), 500
 
-# Per Hugging Face Spaces
+# Para Railway
 if __name__ == '__main__':
     # Crear directorios si no existen
     os.makedirs('templates', exist_ok=True)
@@ -471,24 +403,23 @@ if __name__ == '__main__':
     os.makedirs('static/css', exist_ok=True)
     os.makedirs('static/js', exist_ok=True)
     
-    # Obtenir port de Hugging Face
+    # Obtener port de Railway
     port = int(os.environ.get('PORT', 7860))
     
-    print("\n🚀 Riquer ChatBot iniciado!")
-    print(f"📍 Port: {port}")
-    print("🔐 OAuth configurado con Google" if (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET) else "⚠️  OAuth NO configurado")
+    print("\nRiquer ChatBot iniciado!")
+    print(f"Port: {port}")
+    print("OAuth configurado con Google" if (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET) else "OAuth NO configurado")
     
     # Verificar configuración
     if not GOOGLE_CLIENT_ID:
-        print("⚠️  ADVERTENCIA: GOOGLE_CLIENT_ID no está configurado")
+        print("ADVERTENCIA: GOOGLE_CLIENT_ID no está configurado")
     if not GOOGLE_CLIENT_SECRET:
-        print("⚠️  ADVERTENCIA: GOOGLE_CLIENT_SECRET no está configurado")
+        print("ADVERTENCIA: GOOGLE_CLIENT_SECRET no está configurado")
     if not os.environ.get('API_GEMINI'):
-        print("⚠️  ADVERTENCIA: API_GEMINI no está configurado")
+        print("ADVERTENCIA: API_GEMINI no está configurado")
     
-    # Ejecutar servidor per Hugging Face
     app.run(
         host='0.0.0.0',
         port=port,
-        debug=False  # Desactivar debug en producció
+        debug=False
     )
