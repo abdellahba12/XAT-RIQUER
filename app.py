@@ -418,8 +418,10 @@ if __name__ == '__main__':
     if not os.environ.get('API_GEMINI'):
         print("ADVERTENCIA: API_GEMINI no está configurado")
     
-    app.run(
-        host='0.0.0.0',
-        port=port,
-        debug=False
-    )
+    # Ejecutar servidor para Railway
+    if __name__ == '__main__':
+        app.run(
+            host='0.0.0.0',
+            port=port,
+            debug=False
+        )
