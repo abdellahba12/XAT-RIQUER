@@ -132,7 +132,7 @@ class RiquerChatBot:
         return teachers
     
     def send_email(self, subject: str, body: str, recipients: List[str]) -> Dict:
-        """Función de email usando Mailgun API - funcionalidad idéntica al SMTP original"""
+        """Función de email usando Mailgun API"""
         try:
             mailgun_api_key = os.environ.get("MAILGUN_API_KEY")
             mailgun_domain = os.environ.get("MAILGUN_DOMAIN")
@@ -210,69 +210,129 @@ class RiquerChatBot:
         
         return csv_info
     
+    def detect_language(self, message: str) -> str:
+        """Detecta el idioma del mensaje de forma más precisa"""
+        message_lower = message.lower()
+        
+        # Detectar árabe por caracteres árabes
+        arabic_chars = 'أبتثجحخدذرزسشصضطظعغفقكلمنهويةآإؤئـ'
+        if any(char in arabic_chars for char in message):
+            return 'ar'
+        
+        # Palabras distintivas por idioma (más específicas)
+        catalan_indicators = [
+            # Palabras muy características del catalán
+            'què', 'com', 'quan', 'on', 'per què', 'amb', 'són', 'està', 'estan', 
+            'hem', 'han', 'tinc', 'tens', 'som', 'sou', 'volem', 'voleu',
+            'alumne', 'professor', 'institut', 'curs', 'hora', 'dia',
+            'matí', 'tarda', 'nit', 'any', 'mes', 'setmana',
+            'català', 'castellà', 'anglès', 'francès',
+            'bon', 'bona', 'bones', 'bons', 'molt', 'molta', 'molts', 'moltes'
+        ]
+        
+        spanish_indicators = [
+            # Palabras muy características del español
+            'qué', 'cómo', 'cuándo', 'dónde', 'por qué', 'con', 'son', 'está', 'están',
+            'hemos', 'han', 'tengo', 'tienes', 'somos', 'sois', 'queremos', 'queréis',
+            'alumno', 'profesor', 'instituto', 'curso', 'hora', 'día',
+            'mañana', 'tarde', 'noche', 'año', 'mes', 'semana',
+            'español', 'catalán', 'inglés', 'francés',
+            'buen', 'buena', 'buenas', 'buenos', 'mucho', 'mucha', 'muchos', 'muchas'
+        ]
+        
+        # Contar indicadores con peso
+        catalan_score = 0
+        spanish_score = 0
+        
+        for indicator in catalan_indicators:
+            if indicator in message_lower:
+                catalan_score += 2  # Peso mayor para palabras distintivas
+        
+        for indicator in spanish_indicators:
+            if indicator in message_lower:
+                spanish_score += 2
+        
+        # Patrones adicionales
+        if any(pattern in message_lower for pattern in ['qué tal', 'buenos días', 'buenas tardes', 'buenas noches']):
+            spanish_score += 3
+        
+        if any(pattern in message_lower for pattern in ['com va', 'bon dia', 'bona tarda', 'bona nit']):
+            catalan_score += 3
+        
+        # Decidir idioma
+        if spanish_score > catalan_score:
+            return 'es'
+        elif catalan_score > spanish_score:
+            return 'ca'
+        else:
+            # Si no hay indicadores claros, mantener el idioma anterior o usar catalán por defecto
+            return 'ca'
+    
     def initialize_chat(self):
-        """Inicializa el chat con Gemini"""
+        """Inicializa el chat con Gemini - VERSIÓN MULTILINGÜE CORREGIDA"""
         try:
             # Crear el modelo
             self.model = genai.GenerativeModel('gemini-2.0-flash')
             
-            # Contexto del sistema
+            # Contexto NEUTRAL y multilingüe
             context = """
-            Ets un assistent multilingüe de l'Institut Alexandre de Riquer de Calaf.
-            Et dius Riquer i ets amable, professional i eficient.
+            You are Riquer, a multilingual assistant for Institut Alexandre de Riquer in Calaf.
+            You are friendly, professional and efficient.
             
-            IMPORTANT: Has de respondre SEMPRE en l'idioma en què et parlen:
-            - Si et parlen en català, respon en català
-            - Si et parlen en castellà/español, respon en castellà
-            - Si et parlen en àrab (العربية), respon en àrab
+            CRITICAL LANGUAGE RULE:
+            - If someone writes in Catalan → respond in Catalan
+            - If someone writes in Spanish → respond in Spanish  
+            - If someone writes in Arabic → respond in Arabic
+            - ALWAYS detect the input language and respond in the SAME language
             
-            REGLES IMPORTANTS:
-            1. Detecta automàticament l'idioma del missatge i respon en el mateix idioma
-            2. Només has de respondre preguntes relacionades amb l'institut
-            3. Quan algú vulgui contactar amb un professor, ajuda'l indicant que prepararàs un correu
-            4. Per justificar faltes, indica que s'enviarà a 'abdellahbaghalbachiri@gmail.com'
-            5. Per contactar professors, demana el nom del professor i el motiu
-            6. Sigues concís però complet en les respostes
-            7. Utilitza emojis moderadament per fer la conversa més amigable
-            8. Si hi ha problemes tècnics amb emails, sempre ofereix alternatives
-            9. NOMÉS utilitza la informació dels arxius CSV de l'institut - NO inventis informació
-            10. Si no trobes informació específica als arxius, explica que no està disponible
+            IMPORTANT RULES:
+            1. Auto-detect message language and respond in that exact language
+            2. Only answer questions related to the institute
+            3. For teacher contact, help prepare an email
+            4. For absence justification, send to 'abdellahbaghalbachiri@gmail.com'
+            5. For teacher contact, ask for teacher name and reason
+            6. Be concise but complete
+            7. Use emojis moderately
+            8. If email issues, always offer alternatives
+            9. ONLY use information from institute CSV files - DO NOT invent information
+            10. If specific info not found in files, explain it's not available
             
-            INFORMACIÓ DE L'INSTITUT:
-            - Nom: Institut Alexandre de Riquer
-            - Adreça: C. Sant Joan Bta. de la Salle 6-8, 08280 Calaf (Anoia)
-            - Telèfon: 93 868 04 14
-            - Email general: a8043395@xtec.cat
+            INSTITUTE INFO:
+            - Name: Institut Alexandre de Riquer
+            - Address: C. Sant Joan Bta. de la Salle 6-8, 08280 Calaf (Anoia)
+            - Phone: 93 868 04 14
+            - General email: a8043395@xtec.cat
             - Web: http://www.inscalaf.cat
-            - Consergeria: abdellahbaghalbachiri@gmail.com
+            - Reception: abdellahbaghalbachiri@gmail.com
             
-            HORARIS:
-            - Horari lectiu: matins de 8:00 a 14:35
-            - Horari d'atenció al públic: dilluns a divendres de 8:00 a 14:00h
-            - Secretaria: dilluns a divendres de 9:00 a 13:00h
+            SCHEDULES:
+            - School hours: mornings 8:00 to 14:35
+            - Public attention: Monday to Friday 8:00 to 14:00h
+            - Secretary: Monday to Friday 9:00 to 13:00h
             
-            CURSOS DISPONIBLES:
-            - ESO (1r, 2n, 3r, 4t)
-            - Batxillerat (1r, 2n)
-            - Cicles Formatius de Grau Mitjà i Superior
+            AVAILABLE COURSES:
+            - ESO (1st, 2nd, 3rd, 4th)
+            - Bachillerato (1st, 2nd)
+            - Vocational Training (Medium and Higher Level)
             
-            INSTRUCCIONS PER CORREUS:
-            - Si algú vol justificar una falta, demana: nom alumne, curs, data i motiu
-            - Si algú vol contactar un professor, demana el nom del professor i el motiu
-            - Sempre confirma abans d'indicar que s'enviarà un correu
-            - Si hi ha problemes tècnics, ofereix alternatives: telèfon, email manual, presencial
+            EMAIL INSTRUCTIONS:
+            - For absence justification, ask: student name, course, date and reason
+            - For teacher contact, ask teacher name and reason
+            - Always confirm before indicating an email will be sent
+            - If technical issues, offer alternatives: phone, manual email, in-person
             
-            Recorda: SEMPRE respon en l'idioma del missatge rebut i NOMÉS amb informació dels arxius CSV.
+            Remember: ALWAYS respond in the input message language and ONLY with CSV file information.
             """
             
-            # Iniciar chat con contexto y archivos
-            initial_context = context + "\n\nInformació dels arxius de l'institut:"
+            # Iniciar chat con contexto neutral
+            initial_context = context + "\n\nInstitute file information:"
             if self.uploaded_files:
                 initial_context += "\n".join(self.uploaded_files[:3])
             
+            # Respuesta inicial NEUTRAL
             self.chat = self.model.start_chat(history=[
                 {"role": "user", "parts": [initial_context]},
-                {"role": "model", "parts": ["Entès! Sóc en Riquer, l'assistent virtual multilingüe de l'Institut Alexandre de Riquer. Puc ajudar-vos en català, castellà i àrab basant-me exclusivament en la informació dels arxius de l'institut. Com puc ajudar-vos avui? 😊"]}
+                {"role": "model", "parts": ["Understood! I'm Riquer, the multilingual virtual assistant of Institut Alexandre de Riquer. I can help you in Catalan, Spanish and Arabic based exclusively on institute file information. How can I help you today?"]}
             ])
             
             logger.info("Chat inicializado correctamente")
@@ -282,79 +342,121 @@ class RiquerChatBot:
             self.model = None
             self.chat = None
     
-    def detect_language(self, message: str) -> str:
-        """Detecta el idioma del mensaje"""
-        # Palabras clave por idioma
-        catalan_words = ['què', 'com', 'quan', 'on', 'per', 'amb', 'que', 'és', 'són', 'està', 'estan', 'hem', 'han', 'tinc', 'tens']
-        spanish_words = ['qué', 'cómo', 'cuándo', 'dónde', 'por', 'con', 'que', 'es', 'son', 'está', 'están', 'hemos', 'han', 'tengo', 'tienes']
-        arabic_words = ['ما', 'كيف', 'متى', 'أين', 'في', 'مع', 'هو', 'هي', 'أن', 'من', 'إلى', 'على', 'لا', 'نعم']
+    def _verify_response_language(self, response: str, expected_language: str) -> bool:
+        """Verifica si la respuesta está en el idioma esperado"""
+        response_lower = response.lower()
         
-        message_lower = message.lower()
+        # Palabras indicadoras por idioma
+        language_indicators = {
+            'ca': ['com', 'què', 'som', 'està', 'són', 'molt', 'bon', 'professor', 'alumne', 'institut', 'puc', 'ajudar'],
+            'es': ['cómo', 'qué', 'somos', 'está', 'son', 'mucho', 'buen', 'profesor', 'alumno', 'instituto', 'puedo', 'ayudar'], 
+            'ar': ['كيف', 'ما', 'نحن', 'هو', 'هي', 'كثير', 'جيد', 'أستاذ', 'طالب', 'معهد', 'يمكنني', 'مساعدة']
+        }
         
-        # Detectar árabe por caracteres
-        if any(char in 'أبتثجحخدذرزسشصضطظعغفقكلمنهوي' for char in message):
-            return 'ar'
+        if expected_language not in language_indicators:
+            return True  # Si no podemos verificar, asumimos que está bien
         
-        # Contar coincidencias
-        catalan_count = sum(1 for word in catalan_words if word in message_lower)
-        spanish_count = sum(1 for word in spanish_words if word in message_lower)
+        expected_words = language_indicators[expected_language]
+        found_count = sum(1 for word in expected_words if word in response_lower)
         
-        if catalan_count > spanish_count:
-            return 'ca'
-        elif spanish_count > catalan_count:
-            return 'es'
-        else:
-            return 'ca'  # Por defecto catalán
+        # Si encuentra al menos 1 palabra del idioma esperado, consideramos que está bien
+        return found_count > 0
     
     def process_message(self, message: str, user_data: Dict) -> str:
-        """Procesa un mensaje del usuario"""
+        """Procesa un mensaje del usuario - VERSIÓN CORREGIDA FINAL"""
         try:
-            # Si no hay chat inicializado, dar respuesta de error
             if not self.chat:
                 return "Ho sento, hi ha hagut un problema tècnic. Si us plau, recarrega la pàgina."
             
-            # Detectar idioma
-            language = 'ca'  # Por defecto catalán
-            if message.startswith('[AR] '):
-                language = 'ar'
-                message = message[5:]
-            elif message.startswith('[ES] '):
-                language = 'es'
-                message = message[5:]
+            # PASO 1: Detectar idioma por prefijo (PRIORIDAD MÁXIMA)
+            detected_language = 'ca'  # Por defecto
+            original_message = message
+            
+            if message.startswith('[ES] '):
+                detected_language = 'es'
+                message = message[5:].strip()
+            elif message.startswith('[CA] '):
+                detected_language = 'ca'
+                message = message[5:].strip()
+            elif message.startswith('[AR] '):
+                detected_language = 'ar'
+                message = message[5:].strip()
             else:
-                language = self.detect_language(message)
+                # Si no hay prefijo, detectar automáticamente
+                detected_language = self.detect_language(message)
             
-            # Obtener información de los CSV
-            csv_info = self.get_csv_info(message)
+            # PASO 2: Logging para debug
+            logger.info(f"Idioma detectado: {detected_language} para mensaje: {message[:50]}...")
             
-            # Construir el mensaje con contexto del usuario e idioma
-            language_instruction = {
-                'ca': "Respon en català.",
-                'es': "Responde en español.",
-                'ar': "أجب باللغة العربية."
+            # PASO 3: Instrucciones SÚPER CLARAS por idioma
+            language_commands = {
+                'ca': """
+ORDRE ABSOLUTA: Respon NOMÉS en idioma CATALÀ.
+Utilitza paraules catalanes, gramàtica catalana, expressions catalanes.
+Exemples correctes: "Com puc ajudar-te?", "Quin professor vols contactar?", "Perfecte!", "Molt bé!"
+PROHIBIT respondre en espanyol o altres idiomes.
+""",
+                'es': """
+ORDEN ABSOLUTA: Responde ÚNICAMENTE en idioma ESPAÑOL.
+Utiliza palabras españolas, gramática española, expresiones españolas.
+Ejemplos correctos: "¿Cómo puedo ayudarte?", "¿Qué profesor quieres contactar?", "¡Perfecto!", "¡Muy bien!"
+PROHIBIDO responder en catalán o otros idiomas.
+""",
+                'ar': """
+أمر مطلق: أجب فقط باللغة العربية.
+استخدم كلمات عربية، قواعد عربية، تعبيرات عربية.
+أمثلة صحيحة: "كيف يمكنني مساعدتك؟"، "أي أستاذ تريد التواصل معه؟"، "ممتاز!"، "جيد جداً!"
+ممنوع الرد بالكتالانية أو الإسبانية أو لغات أخرى.
+"""
             }
             
-            full_message = f"{language_instruction.get(language, '')}\nUsuari: {user_data.get('nom', 'Desconegut')}\nPregunta: {message}{csv_info}"
+            # PASO 4: Obtener información CSV
+            csv_info = self.get_csv_info(message)
             
-            # Verificar si el mensaje contiene datos de formulario para email
+            # PASO 5: Construir mensaje con comando de idioma MUY CLARO
+            full_message = f"""{language_commands.get(detected_language, language_commands['ca'])}
+
+Usuario: {user_data.get('nom', 'Desconocido')}
+Pregunta: {message}{csv_info}
+
+IDIOMA DE RESPUESTA OBLIGATORIO: {detected_language.upper()}
+RESPONDE SOLO EN {detected_language.upper()}."""
+            
+            # PASO 6: Verificar si es formulario
             if self._is_form_submission(message):
-                return self._handle_form_submission(message, user_data, language)
+                return self._handle_form_submission(message, user_data, detected_language)
             
-            # Enviar mensaje a Gemini
+            # PASO 7: Enviar a Gemini
             response = self.chat.send_message(full_message)
             response_text = response.text
+            
+            # PASO 8: Verificar idioma de respuesta (failsafe)
+            if not self._verify_response_language(response_text, detected_language):
+                logger.warning(f"Respuesta en idioma incorrecto. Reintentando...")
+                # Reintento con instrucción aún más fuerte
+                force_message = f"""
+¡ATENCIÓN! Tu respuesta anterior NO estaba en {detected_language.upper()}.
+{language_commands.get(detected_language)}
+
+REESCRIBE tu respuesta anterior COMPLETAMENTE en {detected_language.upper()}.
+Usuario: {user_data.get('nom', 'Desconocido')}
+Pregunta original: {message}
+
+RESPUESTA OBLIGATORIA EN {detected_language.upper()}:
+"""
+                response = self.chat.send_message(force_message)
+                response_text = response.text
             
             return self._format_response(response_text)
             
         except Exception as e:
             logger.error(f"Error procesando mensaje: {str(e)}")
-            # Respuesta de error en el idioma detectado
             error_messages = {
                 'ar': "عذراً، حدث خطأ في معالجة استفسارك. يرجى المحاولة مرة أخرى.",
                 'es': "Lo siento, ha habido un error procesando tu consulta. Por favor, inténtalo de nuevo.",
                 'ca': "Ho sento, hi ha hagut un error processant la teva consulta. Si us plau, torna-ho a intentar."
             }
-            return error_messages.get(language, error_messages['ca'])
+            return error_messages.get(detected_language, error_messages['ca'])
     
     def _is_form_submission(self, message: str) -> bool:
         """Detecta si el mensaje es una sumisión de formulario"""
@@ -477,7 +579,7 @@ La justificació s'ha processat correctament."""
                 }
                 return success_messages.get(language, success_messages['ca'])
             else:
-                # Error simple
+                # Error con alternativas
                 error_messages = {
                     'ar': f"""❌ **خطأ في إرسال التبرير**
 
@@ -625,7 +727,7 @@ Error: {str(e)}"""
 
 {message_content}
 
-{f'Disponibilitat: {availability}' if availability and availability != 'None' else ''}
+{f'Disponibilitat: {availability}' if availability and availability != 'None' and availability != 'No especificada' else ''}
 
 Atentament,
 {user_data.get('nom', 'Família')}
@@ -664,7 +766,7 @@ El professor/a respondrà al teu correu en un termini de 24-48 hores."""
                 }
                 return success_messages.get(language, success_messages['ca'])
             else:
-                # Error simple
+                # Error con alternativas
                 error_messages = {
                     'ar': f"""❌ **خطأ في إرسال الرسالة**
 
@@ -746,10 +848,9 @@ Error: {str(e)}"""
             'files_loaded': len(self.uploaded_files),
             'csv_analyzer_available': CSV_ANALYZER_AVAILABLE,
             'api_key_configured': bool(os.environ.get("API_GEMINI")),
-            'emailjs_configured': all([
-                os.environ.get("EMAILJS_SERVICE_ID"),
-                os.environ.get("EMAILJS_TEMPLATE_ID"),
-                os.environ.get("EMAILJS_USER_ID")
+            'mailgun_configured': all([
+                os.environ.get("MAILGUN_API_KEY"),
+                os.environ.get("MAILGUN_DOMAIN")
             ])
         }
         
@@ -769,7 +870,7 @@ Error: {str(e)}"""
         
         # Configuración
         health_report += f"{'✅' if status['api_key_configured'] else '❌'} API Gemini: {'Configurada' if status['api_key_configured'] else 'No configurada'}\n"
-        health_report += f"{'✅' if status['emailjs_configured'] else '❌'} EmailJS: {'Configurado' if status['emailjs_configured'] else 'No configurado'}\n"
+        health_report += f"{'✅' if status['mailgun_configured'] else '❌'} Mailgun: {'Configurado' if status['mailgun_configured'] else 'No configurado'}\n"
         
         # Archivos
         health_report += f"📁 Archivos cargados: {status['files_loaded']}\n"
@@ -780,7 +881,7 @@ Error: {str(e)}"""
 # Instancia global del bot
 bot = RiquerChatBot()
 
-# Funciones para integración
+# Funciones para integración con Flask/FastAPI
 def process_user_message(message: str, history: List, user_name: str, user_contact: str) -> str:
     """Procesa mensajes en la interfaz"""
     user_data = {
@@ -800,3 +901,133 @@ def get_teachers_for_form() -> List[Dict]:
 def get_bot_status() -> Dict:
     """Obtiene el estado detallado del bot"""
     return bot.get_system_status()
+
+# =============================================
+# ENDPOINT FLASK MEJORADO
+# =============================================
+
+from flask import Flask, request, jsonify, render_template, redirect, url_for, flash, session
+from flask_cors import CORS
+
+app = Flask(__name__)
+app.secret_key = 'your-secret-key-here'  # Cambiar por una clave segura
+CORS(app)
+
+@app.route('/chat', methods=['POST'])
+def chat():
+    """Endpoint principal del chat con soporte multilingüe mejorado"""
+    try:
+        data = request.get_json()
+        
+        # Validar datos requeridos
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Obtener datos del request
+        message = data.get('message', '').strip()
+        user_name = data.get('user_name', 'Usuario')
+        user_contact = data.get('user_contact', '')
+        language = data.get('language', 'ca')  # Idioma del frontend
+        
+        if not message:
+            return jsonify({'error': 'Empty message'}), 400
+        
+        # Si no hay prefijo de idioma pero sí idioma del frontend, agregarlo
+        language_prefixes = ['[CA] ', '[ES] ', '[AR] ']
+        if not any(message.startswith(prefix) for prefix in language_prefixes):
+            prefix_map = {'ca': '[CA] ', 'es': '[ES] ', 'ar': '[AR] '}
+            message = prefix_map.get(language, '[CA] ') + message
+        
+        # Preparar datos del usuario
+        user_data = {
+            'nom': user_name,
+            'contacte': user_contact
+        }
+        
+        # Logging para debug
+        logger.info(f"Procesando mensaje: {message[:50]}... | Usuario: {user_name} | Idioma: {language}")
+        
+        # Procesar mensaje
+        response = bot.process_message(message, user_data)
+        
+        # Logging de respuesta
+        logger.info(f"Respuesta generada: {response[:100]}...")
+        
+        return jsonify({
+            'response': response,
+            'language': language,
+            'timestamp': datetime.now().isoformat()
+        })
+        
+    except Exception as e:
+        logger.error(f"Error en /chat: {str(e)}")
+        
+        # Respuesta de error en el idioma solicitado si está disponible
+        error_messages = {
+            'ar': "عذراً، حدث خطأ في الخادم. يرجى المحاولة مرة أخرى.",
+            'es': "Lo siento, ha ocurrido un error en el servidor. Por favor, inténtalo de nuevo.",
+            'ca': "Ho sento, hi ha hagut un error al servidor. Si us plau, torna-ho a intentar."
+        }
+        
+        language = data.get('language', 'ca') if data else 'ca'
+        error_msg = error_messages.get(language, error_messages['ca'])
+        
+        return jsonify({
+            'error': error_msg,
+            'technical_error': str(e),
+            'language': language
+        }), 500
+
+@app.route('/teachers', methods=['GET'])
+def get_teachers():
+    """Endpoint para obtener la lista de profesores"""
+    try:
+        teachers = bot.get_teachers_list()
+        return jsonify({'teachers': teachers})
+    except Exception as e:
+        logger.error(f"Error obteniendo profesores: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/health', methods=['GET'])
+def health():
+    """Endpoint de health check"""
+    try:
+        status = bot.get_system_status()
+        health_report = bot.health_check()
+        
+        return jsonify({
+            'status': 'healthy' if status['chat_initialized'] else 'unhealthy',
+            'details': status,
+            'report': health_report,
+            'timestamp': datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error en health check: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+@app.route('/status', methods=['GET'])
+def status():
+    """Endpoint de estado detallado del sistema"""
+    try:
+        status = bot.get_system_status()
+        return jsonify(status)
+    except Exception as e:
+        logger.error(f"Error obteniendo status: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+# Manejo de errores globales
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Endpoint not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    return jsonify({'error': 'Internal server error'}), 500
+
+if __name__ == '__main__':
+    # Configuración para desarrollo
+    app.run(debug=True, host='0.0.0.0', port=5000)
