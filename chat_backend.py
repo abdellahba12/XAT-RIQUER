@@ -132,73 +132,46 @@ class RiquerChatBot:
         return teachers
     
     def send_email(self, subject: str, body: str, recipients: List[str]) -> Dict:
-        """Función de email que usa Formspree para Hugging Face Spaces"""
+        """Función de email original que funcionará en Railway"""
         try:
-            # Usar Formspree que sí funciona desde servidores
-            formspree_endpoint = os.environ.get("FORMSPREE_ENDPOINT")
+            sender = "riquer@inscalaf.cat"
+            password = os.environ.get("C_GMAIL")
             
-            if not formspree_endpoint:
+            if not password:
+                logger.error("No se encontró C_GMAIL en las variables de entorno")
                 return {
                     "status": "error",
-                    "error": "Falta FORMSPREE_ENDPOINT. Ve a formspree.io y crea un formulario."
+                    "error": "Configuración de email no disponible - falta C_GMAIL"
                 }
             
-            logger.info(f"Enviando email via Formspree a: {recipients}")
+            # Crear mensaje simple como funcionaba antes
+            from email.mime.text import MIMEText
+            import smtplib
             
-            # Preparar datos para Formspree
-            data = {
-                'subject': subject,
-                'message': body,
-                'email': recipients[0] if recipients else '',
-                '_replyto': 'riquer@inscalaf.cat',
-                'from_name': 'Institut Alexandre de Riquer'
+            msg = MIMEText(body, 'plain', 'utf-8')
+            msg['Subject'] = subject
+            msg['From'] = sender
+            msg['To'] = ', '.join(recipients)
+            
+            # Railway permite SMTP - usar la configuración original
+            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp_server:
+                smtp_server.login(sender, password)
+                smtp_server.sendmail(sender, recipients, msg.as_string())
+            
+            logger.info(f"Correo enviado correctamente a: {recipients}")
+            return {
+                "status": "success",
+                "subject": subject,
+                "body": body,
+                "sender": sender,
+                "recipients": recipients,
             }
-            
-            # Enviar via Formspree
-            response = requests.post(
-                formspree_endpoint,
-                data=data,
-                headers={
-                    'Accept': 'application/json',
-                    'Content-Type': 'application/x-www-form-urlencoded'
-                },
-                timeout=15
-            )
-            
-            logger.info(f"Formspree response status: {response.status_code}")
-            logger.info(f"Formspree response text: {response.text}")
-            
-            if response.status_code == 200:
-                logger.info(f"Email enviado exitosamente via Formspree a: {recipients}")
-                return {
-                    "status": "success",
-                    "subject": subject,
-                    "recipients": recipients,
-                    "service": "Formspree"
-                }
-            else:
-                return {
-                    "status": "error",
-                    "error": f"Formspree error {response.status_code}: {response.text}"
-                }
                 
-        except requests.exceptions.Timeout:
-            logger.error("Timeout enviando email via Formspree")
-            return {
-                "status": "error",
-                "error": "Timeout conectando con Formspree"
-            }
-        except requests.exceptions.ConnectionError:
-            logger.error("Error de conexión con Formspree")
-            return {
-                "status": "error",
-                "error": "Error de conexión con Formspree"
-            }
         except Exception as e:
-            logger.error(f"Error general enviando email: {str(e)}")
+            logger.error(f"Error enviando correo: {str(e)}")
             return {
                 "status": "error",
-                "error": f"Error: {str(e)}"
+                "error": str(e)
             }
     
     def get_csv_info(self, query: str) -> str:
