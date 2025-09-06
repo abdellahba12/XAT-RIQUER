@@ -132,56 +132,57 @@ class RiquerChatBot:
         return teachers
     
     def send_email(self, subject: str, body: str, recipients: List[str]) -> Dict:
-    """Función de email usando Mailgun API - funcionalidad idéntica al SMTP original"""
-    try:
-        mailgun_api_key = os.environ.get("MAILGUN_API_KEY")
-        mailgun_domain = os.environ.get("MAILGUN_DOMAIN")
-        
-        if not mailgun_api_key or not mailgun_domain:
-            logger.error("Faltan variables de Mailgun")
-            return {
-                "status": "error",
-                "error": "Configuración de Mailgun no disponible"
-            }
-        
-        # Preparar datos para Mailgun
-        data = {
-            'from': 'Institut Alexandre de Riquer <riquer@inscalaf.cat>',
-            'to': recipients,
-            'subject': subject,
-            'text': body
-        }
-        
-        # Enviar via Mailgun API
-        response = requests.post(
-            f"https://api.mailgun.net/v3/{mailgun_domain}/messages",
-            auth=("api", mailgun_api_key),
-            data=data,
-            timeout=15
-        )
-        
-        if response.status_code == 200:
-            logger.info(f"Correo enviado correctamente a: {recipients}")
-            return {
-                "status": "success",
-                "subject": subject,
-                "body": body,
-                "sender": "riquer@inscalaf.cat",
-                "recipients": recipients,
-            }
-        else:
-            logger.error(f"Mailgun error: {response.status_code} - {response.text}")
-            return {
-                "status": "error",
-                "error": f"Error enviando email: {response.status_code}"
+        """Función de email usando Mailgun API - funcionalidad idéntica al SMTP original"""
+        try:
+            mailgun_api_key = os.environ.get("MAILGUN_API_KEY")
+            mailgun_domain = os.environ.get("MAILGUN_DOMAIN")
+            
+            if not mailgun_api_key or not mailgun_domain:
+                logger.error("Faltan variables de Mailgun")
+                return {
+                    "status": "error",
+                    "error": "Configuración de Mailgun no disponible"
+                }
+            
+            # Preparar datos para Mailgun
+            data = {
+                'from': 'Institut Alexandre de Riquer <riquer@inscalaf.cat>',
+                'to': recipients,
+                'subject': subject,
+                'text': body
             }
             
-    except Exception as e:
-        logger.error(f"Error enviando correo: {str(e)}")
-        return {
-            "status": "error",
-            "error": str(e)
-        }
+            # Enviar via Mailgun API
+            response = requests.post(
+                f"https://api.mailgun.net/v3/{mailgun_domain}/messages",
+                auth=("api", mailgun_api_key),
+                data=data,
+                timeout=15
+            )
+            
+            if response.status_code == 200:
+                logger.info(f"Correo enviado correctamente a: {recipients}")
+                return {
+                    "status": "success",
+                    "subject": subject,
+                    "body": body,
+                    "sender": "riquer@inscalaf.cat",
+                    "recipients": recipients,
+                }
+            else:
+                logger.error(f"Mailgun error: {response.status_code} - {response.text}")
+                return {
+                    "status": "error",
+                    "error": f"Error enviando email: {response.status_code}"
+                }
+                
+        except Exception as e:
+            logger.error(f"Error enviando correo: {str(e)}")
+            return {
+                "status": "error",
+                "error": str(e)
+            }
+    
     def get_csv_info(self, query: str) -> str:
         """Obtiene información específica de los archivos CSV"""
         csv_info = ""
@@ -595,7 +596,7 @@ Error: {str(e)}"""
                     'ca': "⚠️ Si us plau, completa tots els camps requerits (professor, assumpte, missatge)"
                 }
                 return error_messages.get(language, error_messages['ca'])
-            
+
             # Mapear asuntos
             subject_map = {
                 'reunio': {'ca': 'Sol·licitud de reunió', 'es': 'Solicitud de reunión', 'ar': 'طلب اجتماع'},
