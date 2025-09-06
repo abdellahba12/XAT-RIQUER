@@ -1,4 +1,4 @@
-// Sistema de traducción para el chat
+// translations.js - Sistema de traducción completo para el chat multilingüe
 const translations = {
     ca: {
         // Header
@@ -47,7 +47,10 @@ const translations = {
         understandAbsence: "Entenc que vols justificar una falta. Si us plau, omple aquest formulari:",
         understandContact: "Vols contactar amb un professor. Si us plau, omple aquest formulari:",
         formCancelled: "Formulari cancel·lat. En què més et puc ajudar?",
-        errorSending: "Ho sento, hi ha hagut un error. Si us plau, torna-ho a intentar."
+        errorSending: "Ho sento, hi ha hagut un error. Si us plau, torna-ho a intentar.",
+        
+        // Validaciones
+        fillAllFields: "Si us plau, completa tots els camps obligatoris."
     },
     
     es: {
@@ -97,7 +100,10 @@ const translations = {
         understandAbsence: "Entiendo que quieres justificar una falta. Por favor, rellena este formulario:",
         understandContact: "Quieres contactar con un profesor. Por favor, rellena este formulario:",
         formCancelled: "Formulario cancelado. ¿En qué más puedo ayudarte?",
-        errorSending: "Lo siento, ha habido un error. Por favor, inténtalo de nuevo."
+        errorSending: "Lo siento, ha habido un error. Por favor, inténtalo de nuevo.",
+        
+        // Validaciones
+        fillAllFields: "Por favor, completa todos los campos obligatorios."
     },
     
     ar: {
@@ -147,11 +153,14 @@ const translations = {
         understandAbsence: "أفهم أنك تريد تبرير غياب. من فضلك، املأ هذا النموذج:",
         understandContact: "تريد التواصل مع معلم. من فضلك، املأ هذا النموذج:",
         formCancelled: "تم إلغاء النموذج. كيف يمكنني مساعدتك أيضاً؟",
-        errorSending: "عذراً، حدث خطأ. من فضلك حاول مرة أخرى."
+        errorSending: "عذراً، حدث خطأ. من فضلك حاول مرة أخرى.",
+        
+        // Validaciones
+        fillAllFields: "من فضلك، أكمل جميع الحقول المطلوبة."
     }
 };
 
-// Idioma actual (por defecto catalán)
+// Idioma actual
 let currentLanguage = localStorage.getItem('chatLanguage') || 'ca';
 
 // Función para obtener traducción
@@ -199,9 +208,11 @@ function updateUITranslations() {
     
     // Actualizar indicador de escritura
     const typingText = document.querySelector('.typing-indicator');
-    if (typingText) {
-        const spans = typingText.innerHTML.match(/<span><\/span>/g).join('');
-        typingText.innerHTML = spans + ' ' + t('typingIndicator');
+    if (typingText && typingText.textContent.includes('escribiendo') || typingText.textContent.includes('escrivint') || typingText.textContent.includes('يكتب')) {
+        const spans = typingText.innerHTML.match(/<span><\/span>/g);
+        if (spans) {
+            typingText.innerHTML = spans.join('') + ' ' + t('typingIndicator');
+        }
     }
     
     // Actualizar mensaje de bienvenida si existe
@@ -211,8 +222,8 @@ function updateUITranslations() {
 // Función para actualizar el mensaje de bienvenida
 function updateWelcomeMessage() {
     const welcomeMessage = document.querySelector('.welcome-message .message-content');
-    if (welcomeMessage && userData) {
-        const userName = userData.nom.split(' ')[0];
+    if (welcomeMessage && window.userData) {
+        const userName = window.userData.nom.split(' ')[0];
         welcomeMessage.innerHTML = `
             <p>${t('welcomeGreeting', { name: userName })}</p>
             <p>${t('welcomeIntro')}</p>
@@ -229,8 +240,244 @@ function updateWelcomeMessage() {
     }
 }
 
-// Exportar funciones
+// Función para detectar idioma automáticamente (mejorada)
+function autoDetectLanguage(text) {
+    const lowerText = text.toLowerCase();
+    
+    // Detectar árabe por caracteres Unicode
+    if (/[\u0600-\u06FF\u0750-\u077F\u08A0-\u08FF\uFB50-\uFDFF\uFE70-\uFEFF]/.test(text)) {
+        return 'ar';
+    }
+    
+    // Palabras distintivas por idioma
+    const catalanWords = ['què', 'com', 'quan', 'són', 'està', 'hem', 'bon', 'molt', 'professor', 'alumne', 'institut', 'bon dia', 'bona tarda'];
+    const spanishWords = ['qué', 'cómo', 'cuándo', 'son', 'está', 'hemos', 'buen', 'mucho', 'profesor', 'alumno', 'instituto', 'buenos días', 'buenas tardes'];
+    
+    let catalanScore = 0;
+    let spanishScore = 0;
+    
+    catalanWords.forEach(word => {
+        if (lowerText.includes(word)) catalanScore += (word.length > 3 ? 2 : 1);
+    });
+    
+    spanishWords.forEach(word => {
+        if (lowerText.includes(word)) spanishScore += (word.length > 3 ? 2 : 1);
+    });
+    
+    // Patrones específicos
+    if (lowerText.includes('qué tal') || lowerText.includes('buenos días') || lowerText.includes('buenas tardes')) {
+        spanishScore += 3;
+    }
+    
+    if (lowerText.includes('com va') || lowerText.includes('bon dia') || lowerText.includes('bona tarda')) {
+        catalanScore += 3;
+    }
+    
+    if (spanishScore > catalanScore) return 'es';
+    if (catalanScore > spanishScore) return 'ca';
+    
+    return currentLanguage; // Mantener idioma actual si no está claro
+}
+
+// Función mejorada para enviar mensajes
+function sendMessage() {
+    const messageInput = document.getElementById('message-input');
+    const message = messageInput.value.trim();
+    
+    if (!message) return;
+    
+    // Detectar idioma automáticamente si no hay selección manual
+    const detectedLanguage = autoDetectLanguage(message);
+    if (detectedLanguage !== currentLanguage) {
+        changeLanguage(detectedLanguage);
+    }
+    
+    // Agregar prefijo de idioma al mensaje
+    const languagePrefix = {
+        'ca': '[CA] ',
+        'es': '[ES] ',
+        'ar': '[AR] '
+    };
+    
+    const messageWithLanguage = languagePrefix[currentLanguage] + message;
+    
+    // Limpiar input
+    messageInput.value = '';
+    
+    // Mostrar mensaje del usuario
+    addMessageToChat('user', message);
+    
+    // Mostrar indicador de escritura
+    showTypingIndicator();
+    
+    // Enviar al backend
+    fetch('/chat', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            message: messageWithLanguage,
+            user_name: window.userData.nom,
+            user_contact: window.userData.contacte,
+            language: currentLanguage
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideTypingIndicator();
+        
+        if (data.response) {
+            addMessageToChat('bot', data.response);
+        } else if (data.error) {
+            addMessageToChat('bot', t('errorSending'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        hideTypingIndicator();
+        addMessageToChat('bot', t('errorSending'));
+    });
+}
+
+// Función para enviar formulario de ausencias
+function sendAbsenceForm() {
+    const formData = {
+        alumne: document.getElementById('student-name').value.trim(),
+        curs: document.getElementById('course-group').value.trim(),
+        data: document.getElementById('absence-date').value.trim(),
+        motiu: document.getElementById('reason').value.trim()
+    };
+    
+    // Validar campos obligatorios
+    if (!formData.alumne || !formData.curs || !formData.data || !formData.motiu) {
+        alert(t('fillAllFields'));
+        return;
+    }
+    
+    // Construir mensaje con prefijo de idioma
+    const languagePrefix = {
+        'ca': '[CA] ',
+        'es': '[ES] ',
+        'ar': '[AR] '
+    };
+    
+    const message = `${languagePrefix[currentLanguage]}Justificar falta - Alumne: ${formData.alumne}, Curs: ${formData.curs}, Data: ${formData.data}, Motiu: ${formData.motiu}`;
+    
+    // Cerrar modal
+    closeModal('absence-modal');
+    
+    // Mostrar en chat
+    addMessageToChat('user', `${t('absenceFormTitle')}: ${formData.alumne} - ${formData.data}`);
+    showTypingIndicator();
+    
+    // Enviar al backend
+    fetch('/chat', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            message: message,
+            user_name: window.userData.nom,
+            user_contact: window.userData.contacte,
+            language: currentLanguage
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideTypingIndicator();
+        addMessageToChat('bot', data.response || t('errorSending'));
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        hideTypingIndicator();
+        addMessageToChat('bot', t('errorSending'));
+    });
+}
+
+// Función para enviar formulario de contacto con profesores
+function sendTeacherForm() {
+    const formData = {
+        professor: document.getElementById('teacher-select').value.trim(),
+        assumpte: document.getElementById('subject-select').value.trim(),
+        missatge: document.getElementById('message-text').value.trim(),
+        disponibilitat: document.getElementById('availability').value.trim()
+    };
+    
+    // Validar campos obligatorios
+    if (!formData.professor || !formData.assumpte || !formData.missatge) {
+        alert(t('fillAllFields'));
+        return;
+    }
+    
+    // Construir mensaje con prefijo de idioma
+    const languagePrefix = {
+        'ca': '[CA] ',
+        'es': '[ES] ',
+        'ar': '[AR] '
+    };
+    
+    const message = `${languagePrefix[currentLanguage]}Contactar professor ${formData.professor} - Assumpte: ${formData.assumpte}, Missatge: ${formData.missatge}, Disponibilitat: ${formData.disponibilitat || 'No especificada'}`;
+    
+    // Cerrar modal
+    closeModal('teacher-modal');
+    
+    // Mostrar en chat
+    addMessageToChat('user', `${t('teacherFormTitle')}: ${formData.professor}`);
+    showTypingIndicator();
+    
+    // Enviar al backend
+    fetch('/chat', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            message: message,
+            user_name: window.userData.nom,
+            user_contact: window.userData.contacte,
+            language: currentLanguage
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideTypingIndicator();
+        addMessageToChat('bot', data.response || t('errorSending'));
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        hideTypingIndicator();
+        addMessageToChat('bot', t('errorSending'));
+    });
+}
+
+// Inicializar cuando se carga la página
+document.addEventListener('DOMContentLoaded', function() {
+    // Configurar dirección del texto según el idioma
+    document.body.dir = currentLanguage === 'ar' ? 'rtl' : 'ltr';
+    
+    // Actualizar traducciones iniciales
+    updateUITranslations();
+    
+    // Agregar listener para Enter en el input de mensaje
+    const messageInput = document.getElementById('message-input');
+    if (messageInput) {
+        messageInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+    }
+});
+
+// Exportar funciones globales
 window.translations = translations;
 window.t = t;
 window.changeLanguage = changeLanguage;
 window.currentLanguage = currentLanguage;
+window.sendMessage = sendMessage;
+window.sendAbsenceForm = sendAbsenceForm;
+window.sendTeacherForm = sendTeacherForm;
+window.autoDetectLanguage = autoDetectLanguage;
