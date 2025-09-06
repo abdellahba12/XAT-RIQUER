@@ -48,6 +48,8 @@ class RiquerChatBot:
             "https://drive.google.com/uc?export=download&id=1kOjm0jHpF-LqtXYC7uUC1HJAV7DQPBsy",
             "https://drive.google.com/uc?export=download&id=1iMfgjXLrn51EkYhCqMejJT7K5M5J5Ezy",
             "https://drive.google.com/uc?export=download&id=1N7Xpt9JSr1JPoIaju-ekIRW4NGVgPxMU",
+            "https://drive.google.com/uc?export=download&id=1wRAoXk2vM0sZ8DmU-PiBJNiolHHMsAIJ",
+
         ]
         
         for i, url in enumerate(file_urls):
