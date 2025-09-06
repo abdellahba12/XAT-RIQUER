@@ -132,48 +132,56 @@ class RiquerChatBot:
         return teachers
     
     def send_email(self, subject: str, body: str, recipients: List[str]) -> Dict:
-        """Función de email original que funcionará en Railway"""
-        try:
-            sender = "riquer@inscalaf.cat"
-            password = os.environ.get("C_GMAIL")
-            
-            if not password:
-                logger.error("No se encontró C_GMAIL en las variables de entorno")
-                return {
-                    "status": "error",
-                    "error": "Configuración de email no disponible - falta C_GMAIL"
-                }
-            
-            # Crear mensaje simple como funcionaba antes
-            from email.mime.text import MIMEText
-            import smtplib
-            
-            msg = MIMEText(body, 'plain', 'utf-8')
-            msg['Subject'] = subject
-            msg['From'] = sender
-            msg['To'] = ', '.join(recipients)
-            
-            # Railway permite SMTP - usar la configuración original
-            with smtplib.SMTP_SSL('smtp.gmail.com', 465) as smtp_server:
-                smtp_server.login(sender, password)
-                smtp_server.sendmail(sender, recipients, msg.as_string())
-            
+    """Función de email usando Mailgun API - funcionalidad idéntica al SMTP original"""
+    try:
+        mailgun_api_key = os.environ.get("MAILGUN_API_KEY")
+        mailgun_domain = os.environ.get("MAILGUN_DOMAIN")
+        
+        if not mailgun_api_key or not mailgun_domain:
+            logger.error("Faltan variables de Mailgun")
+            return {
+                "status": "error",
+                "error": "Configuración de Mailgun no disponible"
+            }
+        
+        # Preparar datos para Mailgun
+        data = {
+            'from': 'Institut Alexandre de Riquer <riquer@inscalaf.cat>',
+            'to': recipients,
+            'subject': subject,
+            'text': body
+        }
+        
+        # Enviar via Mailgun API
+        response = requests.post(
+            f"https://api.mailgun.net/v3/{mailgun_domain}/messages",
+            auth=("api", mailgun_api_key),
+            data=data,
+            timeout=15
+        )
+        
+        if response.status_code == 200:
             logger.info(f"Correo enviado correctamente a: {recipients}")
             return {
                 "status": "success",
                 "subject": subject,
                 "body": body,
-                "sender": sender,
+                "sender": "riquer@inscalaf.cat",
                 "recipients": recipients,
             }
-                
-        except Exception as e:
-            logger.error(f"Error enviando correo: {str(e)}")
+        else:
+            logger.error(f"Mailgun error: {response.status_code} - {response.text}")
             return {
                 "status": "error",
-                "error": str(e)
+                "error": f"Error enviando email: {response.status_code}"
             }
-    
+            
+    except Exception as e:
+        logger.error(f"Error enviando correo: {str(e)}")
+        return {
+            "status": "error",
+            "error": str(e)
+        }
     def get_csv_info(self, query: str) -> str:
         """Obtiene información específica de los archivos CSV"""
         csv_info = ""
