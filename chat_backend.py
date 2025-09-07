@@ -51,36 +51,69 @@ class RiquerChatBot:
             "https://drive.google.com/uc?export=download&id=1neJFgTH0GWO5HbL64V6Fro0r1SKw8mFw",
         ]
         
+        successful_downloads = 0
+        
         for i, url in enumerate(file_urls):
             try:
                 logger.info(f"Descargando archivo {i+1} de {len(file_urls)}")
                 response = requests.get(url, timeout=30)
                 response.raise_for_status()
                 
-                # Determinar extensión
-                file_extension = ".csv" if "csv" in response.headers.get('content-type', '') else ".txt"
+                # Detectar tipo de archivo
+                content_type = response.headers.get('content-type', '')
+                file_type = self.detect_file_type(response.content, content_type)
+                
+                logger.info(f"Archivo {i+1}: Tipo detectado = {file_type}, Content-Type = {content_type}")
+                
+                # Verificar si es una página HTML de error
+                if response.content.startswith(b'<!DOCTYPE html>'):
+                    logger.warning(f"Archivo {i+1}: Recibido HTML en lugar del archivo - posible problema de permisos")
+                    continue
+                
+                # Verificar tamaño mínimo
+                if len(response.content) < 100:
+                    logger.warning(f"Archivo {i+1}: Tamaño muy pequeño ({len(response.content)} bytes)")
+                    continue
+                
+                # Determinar extensión basada en tipo detectado
+                extension_map = {'pdf': '.pdf', 'csv': '.csv', 'txt': '.txt', 'unknown': '.bin'}
+                file_extension = extension_map.get(file_type, '.txt')
                 file_path = f"drive_files/file_{i+1}{file_extension}"
                 
                 # Guardar archivo localmente
                 with open(file_path, 'wb') as f:
                     f.write(response.content)
                 
-                # Para Gemini, leer el contenido (manejo de errores de encoding)
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        content = f.read()
-                except UnicodeDecodeError:
-                    # Si falla UTF-8, probar con latin-1
-                    with open(file_path, 'r', encoding='latin-1') as f:
-                        content = f.read()
+                # Procesar según tipo de archivo
+                content_for_gemini = ""
                 
-                self.uploaded_files.append(f"\n--- Archivo {i+1} ---\n{content[:2000]}...")
-                logger.info(f"Archivo {i+1} cargado correctamente")
+                if file_type == 'pdf':
+                    content_for_gemini = self.process_pdf_content(response.content, f"file_{i+1}")
+                elif file_type in ['csv', 'txt']:
+                    # Leer contenido de texto (manejo de errores de encoding)
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            content_for_gemini = f.read()[:2000]
+                    except UnicodeDecodeError:
+                        try:
+                            with open(file_path, 'r', encoding='latin-1') as f:
+                                content_for_gemini = f.read()[:2000]
+                        except Exception as e:
+                            logger.error(f"Error leyendo archivo de texto {i+1}: {str(e)}")
+                            content_for_gemini = f"Error leyendo archivo {i+1}"
+                else:
+                    content_for_gemini = f"Archivo {i+1} de tipo desconocido ({file_type})"
+                
+                # Añadir a la lista para Gemini
+                self.uploaded_files.append(f"\n--- Archivo {i+1} ({file_type.upper()}) ---\n{content_for_gemini}")
+                successful_downloads += 1
+                logger.info(f"Archivo {i+1} procesado exitosamente como {file_type}")
                 
             except Exception as e:
                 logger.error(f"Error cargando archivo {url}: {str(e)}")
+                continue
         
-        logger.info(f"Total archivos cargados: {len(self.uploaded_files)}")
+        logger.info(f"Archivos procesados exitosamente: {successful_downloads}/{len(file_urls)}")
     
     def get_teachers_list(self) -> List[Dict]:
         """Obtiene la lista de profesores desde los CSV para el formulario"""
@@ -300,8 +333,8 @@ class RiquerChatBot:
             6. Be concise but complete
             7. Use emojis moderately
             8. If email issues, always offer alternatives
-            9. All the information from institute is in the CSV files - DO NOT invent information
-            10. If info not found in files, explain it's not available
+            9. ONLY use information from institute CSV files - DO NOT invent information
+            10. If specific info not found in files, explain it's not available
             
             INSTITUTE INFO:
             - Name: Institut Alexandre de Riquer
