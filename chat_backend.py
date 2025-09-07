@@ -300,8 +300,8 @@ class RiquerChatBot:
             6. Be concise but complete
             7. Use emojis moderately
             8. If email issues, always offer alternatives
-            9. ONLY use information from institute CSV files - DO NOT invent information
-            10. If specific info not found in files, explain it's not available
+            9. All the information from institute is in the CSV files - DO NOT invent information
+            10. If info not found in files, explain it's not available
             
             INSTITUTE INFO:
             - Name: Institut Alexandre de Riquer
