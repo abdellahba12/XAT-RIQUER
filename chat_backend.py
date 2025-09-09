@@ -220,6 +220,7 @@ class RiquerChatBot:
             6. Utilitza emojis moderadament
             7. NOMÉS utilitza informació dels arxius CSV de l'institut - NO inventis informació
             8. Si no trobes informació específica als arxius, explica que no està disponible
+            9. Si algu demana justificar una falta o demanar una reunio obra tu automaticament el formulari corresponent
             
             INFORMACIÓ DE L'INSTITUT:
             - Nom: Institut Alexandre de Riquer
