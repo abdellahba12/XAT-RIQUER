@@ -14,14 +14,14 @@ app = Flask(__name__,
 )
 CORS(app)
 
-# Configurar clave secreta para sesiones
+# Configurar clau secreta
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Verificar configuración OAuth
+# Verificar configuració OAuth
 GOOGLE_CLIENT_ID = os.environ.get('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
 
@@ -33,9 +33,9 @@ else:
 # Configurar OAuth
 oauth = OAuth(app)
 
-# Función para obtener la URL base correcta
+# URL
 def get_base_url():
-    # Para Railway u otros servicios
+    # Para Railway 
     if request.headers.get('X-Forwarded-Proto'):
         return f"https://{request.headers.get('Host', '')}"
     
@@ -71,7 +71,7 @@ except Exception as e:
     logger.error(f"Error inicializando bot: {str(e)}")
     bot = None
 
-# Decorator para requerir login
+# loggin
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
