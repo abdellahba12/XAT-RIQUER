@@ -5,12 +5,12 @@ const translations = {
         chatTitle: "Xat amb l'Institut Alexandre de Riquer",
         logout: "Tancar sessió",
         
-        // Mensajes de bienvenida
+        // benvinguda
         welcomeGreeting: "Hola {name}! 👋",
         welcomeIntro: "Sóc en Riquer, l'assistent virtual de l'Institut Alexandre de Riquer.",
         welcomeHelp: "Estic aquí per ajudar-te amb qualsevol consulta sobre l'institut. Pots preguntar-me sobre:",
         
-        // Opciones del menú
+        // Opcions del menú
         schedules: "Horaris i calendari escolar",
         teacherContact: "Contacte amb professors i tutors",
         absenceJustify: "Justificació de faltes",
@@ -21,7 +21,7 @@ const translations = {
         // Input
         messagePlaceholder: "Escriu el teu missatge...",
         
-        // Formularios
+        // Formularis
         absenceFormTitle: "📋 Justificació de Falta d'Assistència",
         studentName: "Nom de l'alumne:",
         courseGroup: "Curs i grup:",
@@ -42,14 +42,14 @@ const translations = {
         availability: "Disponibilitat (si és per reunió):",
         sendMessage: "Enviar missatge",
         
-        // Respuestas del bot
+        // Respostes del bot
         typingIndicator: "En Riquer està escrivint...",
         understandAbsence: "Entenc que vols justificar una falta. Si us plau, omple aquest formulari:",
         understandContact: "Vols contactar amb un professor. Si us plau, omple aquest formulari:",
         formCancelled: "Formulari cancel·lat. En què més et puc ajudar?",
         errorSending: "Ho sento, hi ha hagut un error. Si us plau, torna-ho a intentar.",
         
-        // Validaciones
+        // Validacions
         fillAllFields: "Si us plau, completa tots els camps obligatoris."
     },
     
@@ -58,12 +58,12 @@ const translations = {
         chatTitle: "Chat con el Instituto Alexandre de Riquer",
         logout: "Cerrar sesión",
         
-        // Mensajes de bienvenida
+        // benvinguda
         welcomeGreeting: "¡Hola {name}! 👋",
         welcomeIntro: "Soy Riquer, el asistente virtual del Instituto Alexandre de Riquer.",
         welcomeHelp: "Estoy aquí para ayudarte con cualquier consulta sobre el instituto. Puedes preguntarme sobre:",
         
-        // Opciones del menú
+        // Opcions del menú
         schedules: "Horarios y calendario escolar",
         teacherContact: "Contacto con profesores y tutores",
         absenceJustify: "Justificación de faltas",
@@ -74,7 +74,7 @@ const translations = {
         // Input
         messagePlaceholder: "Escribe tu mensaje...",
         
-        // Formularios
+        // Formulari
         absenceFormTitle: "📋 Justificación de Falta de Asistencia",
         studentName: "Nombre del alumno:",
         courseGroup: "Curso y grupo:",
@@ -95,7 +95,7 @@ const translations = {
         availability: "Disponibilidad (si es para reunión):",
         sendMessage: "Enviar mensaje",
         
-        // Respuestas del bot
+        // resposta del bot
         typingIndicator: "Riquer está escribiendo...",
         understandAbsence: "Entiendo que quieres justificar una falta. Por favor, rellena este formulario:",
         understandContact: "Quieres contactar con un profesor. Por favor, rellena este formulario:",
@@ -111,12 +111,12 @@ const translations = {
         chatTitle: "محادثة مع معهد ألكسندر دي ريكير",
         logout: "تسجيل الخروج",
         
-        // Mensajes de bienvenida
+        // benvinguda
         welcomeGreeting: "مرحباً {name}! 👋",
         welcomeIntro: "أنا ريكير، المساعد الافتراضي لمعهد ألكسندر دي ريكير.",
         welcomeHelp: "أنا هنا لمساعدتك في أي استفسار حول المعهد. يمكنك أن تسألني عن:",
         
-        // Opciones del menú
+        // Opcions del menú
         schedules: "الجداول والتقويم المدرسي",
         teacherContact: "التواصل مع المعلمين والمرشدين",
         absenceJustify: "تبرير الغياب",
@@ -127,7 +127,7 @@ const translations = {
         // Input
         messagePlaceholder: "اكتب رسالتك...",
         
-        // Formularios
+        // Formularis
         absenceFormTitle: "📋 تبرير الغياب",
         studentName: "اسم الطالب:",
         courseGroup: "الصف والمجموعة:",
@@ -163,11 +163,11 @@ const translations = {
 // Idioma actual
 let currentLanguage = localStorage.getItem('chatLanguage') || 'ca';
 
-// Función para obtener traducción
+// traduccio
 function t(key, params = {}) {
     let text = translations[currentLanguage][key] || translations['ca'][key] || key;
     
-    // Reemplazar parámetros
+    
     Object.keys(params).forEach(param => {
         text = text.replace(`{${param}}`, params[param]);
     });
