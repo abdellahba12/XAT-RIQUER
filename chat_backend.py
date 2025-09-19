@@ -8,11 +8,11 @@ from typing import Dict, List, Optional
 import re
 from datetime import datetime
 
-# Configuración de logging
+# Configuració de logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# Configuración de API
+# Configuració de API
 api_key = os.environ.get("API_GEMINI")
 if not api_key:
     logger.warning("No se encontró API_GEMINI en las variables de entorno")
@@ -23,8 +23,8 @@ class RiquerChatBot:
     def __init__(self):
         self.model = None
         self.chat = None
-        self.uploaded_files = []  # Ahora guardará objetos File de Gemini
-        self.file_contents = []  # Para guardar contenido como texto de respaldo
+        self.uploaded_files = []  #Llista d'arxius pujats a l'API de Gemini
+        self.file_contents = []  # Còpia de seguretat del contingut dels arxius com a text
         self.initialize_directories()
         self.initialize_files()
         self.initialize_chat()
@@ -35,7 +35,7 @@ class RiquerChatBot:
         os.makedirs('logs', exist_ok=True)
     
     def initialize_files(self):
-        """Descarga y SUBE los archivos CSV/TXT a Gemini API"""
+        """Descarga y PUJA els arxius CSV/TXT a Gemini API"""
         file_urls = [
             "https://drive.google.com/uc?export=download&id=1-Stsv68nDGxH2kDy_idcGM6FoXYMO3I8",
             "https://drive.google.com/uc?export=download&id=1kOjm0jHpF-LqtXYC7uUC1HJAV7DQPBsy",
@@ -57,28 +57,28 @@ class RiquerChatBot:
                     logger.warning(f"Archivo {i+1}: Recibido HTML en lugar del archivo")
                     continue
                 
-                # Verificar tamaño mínimo
+                # Verificar tamany mínimo
                 if len(response.content) < 100:
                     logger.warning(f"Archivo {i+1}: Tamaño muy pequeño ({len(response.content)} bytes)")
                     continue
                 
-                # Determinar tipo de archivo
-                file_extension = ".txt"  # Por defecto
+                # Determinar tipo d'arxiu
+                file_extension = ".txt"  
                 if b',' in response.content[:1000] and b'\n' in response.content[:1000]:
                     file_extension = ".csv"
                 
-                # Guardar temporalmente y subir a Gemini
+                # Guardar y pujar a Gemini
                 with tempfile.NamedTemporaryFile(suffix=file_extension, delete=False) as tmp_file:
                     tmp_file.write(response.content)
                     tmp_file_path = tmp_file.name
                 
                 try:
-                    # IMPORTANTE: Subir archivo a Gemini API
+                    # Puja els arxius a gemini
                     uploaded_file = genai.upload_file(tmp_file_path, mime_type="text/plain")
                     self.uploaded_files.append(uploaded_file)
                     logger.info(f"Archivo {i+1} subido a Gemini: {uploaded_file.name}")
                     
-                    # También guardar contenido como texto para respaldo
+                    #  guarda el contingut dels archius
                     try:
                         with open(tmp_file_path, 'r', encoding='utf-8') as f:
                             content = f.read()
@@ -91,7 +91,7 @@ class RiquerChatBot:
                     successful_uploads += 1
                     
                 finally:
-                    # Limpiar archivo temporal
+                    # borrar archivo temporal
                     os.remove(tmp_file_path)
                 
             except Exception as e:
@@ -102,7 +102,7 @@ class RiquerChatBot:
     
     def get_teachers_list(self) -> List[Dict]:
         """Obtiene la lista de profesores para el formulario"""
-        # Lista estática de profesores (puedes expandirla o cargarla desde CSV)
+        # Lista per triar de profesors
         teachers = [
             {'name': 'Roger Codina', 'email': 'roger.codina@inscalaf.cat'},
             {'name': 'Abdellah Baghal', 'email': 'abdellah.baghal@inscalaf.cat'},
@@ -119,7 +119,7 @@ class RiquerChatBot:
         return teachers
     
     def send_email(self, subject: str, body: str, recipients: List[str]) -> Dict:
-        """Función de email usando Mailgun API"""
+        """GMAIL Mailgun API"""
         try:
             mailgun_api_key = os.environ.get("MAILGUN_API_KEY")
             mailgun_domain = os.environ.get("MAILGUN_DOMAIN")
@@ -131,7 +131,7 @@ class RiquerChatBot:
                     "error": "Configuración de Mailgun no disponible"
                 }
             
-            # Preparar datos para Mailgun
+            
             data = {
                 'from': 'Institut Alexandre de Riquer <riquer@inscalaf.cat>',
                 'to': recipients,
@@ -174,11 +174,11 @@ class RiquerChatBot:
         """Detecta el idioma del mensaje"""
         message_lower = message.lower()
         
-        # Detectar árabe por caracteres árabes
+        # Detectar árab por caracteres árabs
         if any(ord(char) > 1536 and ord(char) < 1791 for char in message):
             return 'ar'
         
-        # Palabras distintivas por idioma
+        # pARAULES COMUNS DE L'IDIOMA
         catalan_indicators = ['què', 'com', 'quan', 'on', 'amb', 'són', 'està', 'estan', 
                               'alumne', 'professor', 'institut', 'curs']
         spanish_indicators = ['qué', 'cómo', 'cuándo', 'dónde', 'con', 'son', 'está', 'están',
@@ -195,9 +195,9 @@ class RiquerChatBot:
             return 'ca'  # Por defecto catalán
     
     def initialize_chat(self):
-        """Inicializa el chat con Gemini incluyendo los archivos subidos"""
+        """Inicializa el chat con Gemini AMB ELS ARCHIUS PUJATS"""
         try:
-            # Crear el modelo
+            # Crear UN model
             self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
             
             # Contexto del sistema
@@ -250,9 +250,9 @@ class RiquerChatBot:
             SEMPRE consulta aquests arxius abans de respondre preguntes específiques sobre horaris, professors o activitats.
             """
             
-            # Si hay archivos subidos a Gemini, incluirlos en el chat
+            # Si ja hi han archius pujats inclou al context
             if self.uploaded_files:
-                # Iniciar chat con los archivos adjuntos
+                # Iniciar chat amb els archius adjunts
                 self.chat = self.model.start_chat(
                     history=[
                         {
@@ -260,7 +260,7 @@ class RiquerChatBot:
                             "parts": [
                                 context,
                                 "Aquí tens els arxius de l'institut amb tota la informació:",
-                                *self.uploaded_files  # Incluir los archivos subidos
+                                *self.uploaded_files  # Incluir els archius pujats
                             ]
                         },
                         {
@@ -273,7 +273,7 @@ class RiquerChatBot:
                     ]
                 )
             else:
-                # Si no hay archivos, usar solo el contexto de texto
+                
                 self.chat = self.model.start_chat(
                     history=[
                         {"role": "user", "parts": [context]},
@@ -295,7 +295,7 @@ class RiquerChatBot:
                 return "Ho sento, hi ha hagut un problema tècnic. Si us plau, recarrega la pàgina."
             
             # Detectar idioma
-            detected_language = 'ca'  # Por defecto
+            detected_language = 'ca' #per defecte
             
             if message.startswith('[ES] '):
                 detected_language = 'es'
@@ -318,7 +318,7 @@ class RiquerChatBot:
                 'ar': "مهم: أجب فقط باللغة العربية. راجع ملفات CSV لتقديم معلومات دقيقة."
             }
             
-            # Construir mensaje completo
+            # Construir missatge completo
             full_message = f"""{language_commands.get(detected_language, language_commands['ca'])}
 
 Usuari: {user_data.get('nom', 'Desconegut')}
@@ -327,7 +327,7 @@ Pregunta: {message}
 RECORDA: Consulta SEMPRE els arxius CSV adjunts abans de respondre. Si la informació no està als arxius, indica-ho clarament.
 IDIOMA DE RESPOSTA OBLIGATORI: {detected_language.upper()}"""
             
-            # Verificar si es formulario
+            # Verificar si es un formulari
             if self._is_form_submission(message):
                 return self._handle_form_submission(message, user_data, detected_language)
             
@@ -347,7 +347,7 @@ IDIOMA DE RESPOSTA OBLIGATORI: {detected_language.upper()}"""
             return error_messages.get(detected_language, error_messages['ca'])
     
     def _is_form_submission(self, message: str) -> bool:
-        """Detecta si el mensaje es una sumisión de formulario"""
+        """Detecta si el mensaje es un formulario"""
         form_keywords = [
             "Justificar falta - Alumne:",
             "Contactar professor",
@@ -357,7 +357,7 @@ IDIOMA DE RESPOSTA OBLIGATORI: {detected_language.upper()}"""
         return any(keyword in message for keyword in form_keywords)
     
     def _handle_form_submission(self, message: str, user_data: Dict, language: str) -> str:
-        """Maneja la sumisión de formularios y envía emails"""
+        """controla els formularis i envia mails"""
         try:
             if "Justificar falta" in message:
                 return self._handle_absence_form(message, user_data, language)
@@ -375,9 +375,9 @@ IDIOMA DE RESPOSTA OBLIGATORI: {detected_language.upper()}"""
             return f"⚠️ Error al processar el formulari: {str(e)}"
     
     def _handle_absence_form(self, message: str, user_data: Dict, language: str) -> str:
-        """Procesa el formulario de justificación de faltas"""
+        """Procesa el formulari de faltes"""
         try:
-            # Parser para extraer datos
+            #  per extreure dades
             lines = message.split('\n')
             data = {}
             
@@ -400,7 +400,7 @@ IDIOMA DE RESPOSTA OBLIGATORI: {detected_language.upper()}"""
             data_falta = data.get('data', '').strip()
             motiu = data.get('motiu', '').strip()
             
-            # Validar datos
+            # Validar dades
             if not all([alumne, curs, data_falta, motiu]):
                 error_messages = {
                     'ar': "⚠️ يرجى ملء جميع الحقول المطلوبة",
@@ -409,7 +409,7 @@ IDIOMA DE RESPOSTA OBLIGATORI: {detected_language.upper()}"""
                 }
                 return error_messages.get(language, error_messages['ca'])
             
-            # Construir email
+            # Construir mail
             subject = f"Justificació de falta - {alumne} ({curs})"
             body = f"""Benvolguts,
 
@@ -453,7 +453,7 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
     def _handle_teacher_contact_form(self, message: str, user_data: Dict, language: str) -> str:
         """Procesa el formulario de contacto con profesor"""
         try:
-            # Parser para extraer datos
+            # extreure dades reunio
             professor_name = ""
             subject = ""
             message_content = ""
@@ -480,7 +480,7 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
                     end = len(message)
                 message_content = message[start:end].strip()
             
-            # Validar datos
+            # Validar dades
             if not all([professor_name, subject, message_content]):
                 error_messages = {
                     'ar': "⚠️ يرجى ملء جميع الحقول المطلوبة",
@@ -531,18 +531,18 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
     
     def _format_response(self, response: str) -> str:
         """Formatea la respuesta para mejorar la presentación"""
-        # Limpiar posibles asteriscos de formato de Gemini
+        # treure caracters raros
         response = response.replace('**', '')
         response = response.replace('*', '')
         
-        # Asegurar salto de línea al final
+        # dalt de linea
         if not response.endswith('\n'):
             response += '\n'
         
         return response.strip()
     
     def get_system_status(self) -> Dict:
-        """Obtiene el estado del sistema"""
+        """estar del sistema"""
         status = {
             'chat_initialized': self.chat is not None,
             'model_available': self.model is not None,
@@ -558,7 +558,7 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
         return status
     
     def health_check(self) -> str:
-        """Realiza un chequeo de salud del sistema"""
+        """salut del sistema"""
         status = self.get_system_status()
         
         health_report = "🔍 **Informe de Estado del Sistema**\n\n"
