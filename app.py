@@ -33,17 +33,17 @@ else:
 # Configurar OAuth
 oauth = OAuth(app)
 
-# URL
+# URL base per OAuth callbacks
 def get_base_url():
-    # Para Railway 
+    # Per Koyeb o altres serveis
     if request.headers.get('X-Forwarded-Proto'):
         return f"https://{request.headers.get('Host', '')}"
     
-    # Obtener la URL del entorno de Railway
+    # URL per defecte
     host = request.headers.get('Host', request.host)
     return f"https://{host}"
 
-# Registrar Google OAuth con configuración completa
+# Registrar Google OAuth
 try:
     google = oauth.register(
         name='google',
@@ -71,7 +71,7 @@ except Exception as e:
     logger.error(f"Error inicializando bot: {str(e)}")
     bot = None
 
-# loggin
+# Decorator per requerir login
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -280,7 +280,7 @@ def logout():
 @app.route('/')
 @login_required
 def index():
-    return render_template('index_oauth.html', user=session['user'])
+    return render_template('index.html', user=session['user'])
 
 # API endpoint para el chat
 @app.route('/api/chat', methods=['POST'])
@@ -341,28 +341,6 @@ def get_teachers():
             'error': str(e)
         }), 500
 
-# API endpoint para cambiar idioma
-@app.route('/api/language', methods=['POST'])
-@login_required
-def set_language():
-    try:
-        data = request.json
-        language = data.get('language', 'ca')
-        
-        session['language'] = language
-        
-        return jsonify({
-            'status': 'success',
-            'language': language
-        })
-        
-    except Exception as e:
-        logger.error(f"Error setting language: {str(e)}")
-        return jsonify({
-            'status': 'error',
-            'error': str(e)
-        }), 500
-
 # API endpoint para obtener información del usuario
 @app.route('/api/user')
 @login_required
@@ -379,8 +357,8 @@ def send_static(path):
 def health():
     return jsonify({
         'status': 'ok', 
-        'service': 'Riquer Chat Bot with OAuth',
-        'environment': 'Railway',
+        'service': 'Riquer Chat Bot',
+        'environment': 'Koyeb',
         'oauth_configured': bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
         'bot_initialized': bot is not None
     })
@@ -395,7 +373,7 @@ def server_error(e):
     logger.error(f"Server error: {str(e)}")
     return jsonify({'error': 'Internal server error'}), 500
 
-# Para Railway
+# Per Koyeb
 if __name__ == '__main__':
     # Crear directorios si no existen
     os.makedirs('templates', exist_ok=True)
@@ -403,25 +381,24 @@ if __name__ == '__main__':
     os.makedirs('static/css', exist_ok=True)
     os.makedirs('static/js', exist_ok=True)
     
-    # Obtener port de Railway
-    port = int(os.environ.get('PORT', 7860))
+    # Port per Koyeb
+    port = int(os.environ.get('PORT', 8000))
     
-    print("\nRiquer ChatBot iniciado!")
-    print(f"Port: {port}")
-    print("OAuth configurado con Google" if (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET) else "OAuth NO configurado")
+    print("\n🚀 Riquer ChatBot iniciat!")
+    print(f"📍 Port: {port}")
+    print("✅ OAuth configurado" if (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET) else "❌ OAuth NO configurado")
     
-    # Verificar configuración
+    # Verificar configuració
     if not GOOGLE_CLIENT_ID:
-        print("ADVERTENCIA: GOOGLE_CLIENT_ID no está configurado")
+        print("⚠️ ADVERTÈNCIA: GOOGLE_CLIENT_ID no està configurat")
     if not GOOGLE_CLIENT_SECRET:
-        print("ADVERTENCIA: GOOGLE_CLIENT_SECRET no está configurado")
+        print("⚠️ ADVERTÈNCIA: GOOGLE_CLIENT_SECRET no està configurat")
     if not os.environ.get('API_GEMINI'):
-        print("ADVERTENCIA: API_GEMINI no está configurado")
+        print("⚠️ ADVERTÈNCIA: API_GEMINI no està configurat")
     
-    # Ejecutar servidor para Railway
-    if __name__ == '__main__':
-        app.run(
-            host='0.0.0.0',
-            port=port,
-            debug=False
-        )
+    # Executar servidor
+    app.run(
+        host='0.0.0.0',
+        port=port,
+        debug=False
+    )
