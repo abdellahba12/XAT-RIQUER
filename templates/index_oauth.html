@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Xat Institut Alexandre de Riquer</title>
-    <link rel="shortcut icon" href="ruta/a/tu/logo.ico" type="image/x-icon">
     <link rel="icon" href="/static/images/riquer_logo.png" type="image/png">
     <link rel="stylesheet" href="/static/css/styles.css">
     <style>
@@ -14,32 +13,6 @@
             align-items: center;
             gap: 15px;
         }
-       
-        }
-        .lang-btn {
-            width: 32px;
-            height: 24px;
-            border: none;
-            cursor: pointer;
-            border-radius: 4px;
-            overflow: hidden;
-            transition: all 0.3s ease;
-            position: relative;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
-        }
-        .lang-btn:hover {
-            transform: scale(1.1);
-            box-shadow: 0 3px 8px rgba(0,0,0,0.3);
-        }
-        .lang-btn.active {
-            outline: 2px solid white;
-            outline-offset: 2px;
-        }
-        .lang-btn img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
         .user-avatar-btn {
             width: 40px;
             height: 40px;
@@ -48,6 +21,12 @@
             cursor: pointer;
             border: 2px solid rgba(255,255,255,0.3);
             transition: all 0.3s ease;
+            background: #4a7ba7;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
         }
         .user-avatar-btn:hover {
             border-color: rgba(255,255,255,0.8);
@@ -104,12 +83,20 @@
         .logout-btn:hover {
             background: #fee;
         }
-        
+        @keyframes fadeInDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
     </style>
 </head>
 <body>
     <div class="app-container">
-        <!-- Chat interface directamente (sin formulario) -->
         <div id="chat-container" class="chat-section" style="display: flex;">
             <div class="chat-header">
                 <img src="/static/images/riquer_logo.png" alt="Institut Alexandre de Riquer" class="chat-logo" onerror="this.style.display='none'">
@@ -121,24 +108,11 @@
                     </p>
                 </div>
                 <div class="user-menu">
-                    <div class="language-selector">
-                        <button class="lang-btn active" data-lang="ca" onclick="changeLanguage('ca')" title="Català">
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/c/ce/Flag_of_Catalonia.svg" alt="Català">
-                        </button>
-                        <button class="lang-btn" data-lang="es" onclick="changeLanguage('es')" title="Español">
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/9/9a/Flag_of_Spain.svg" alt="Español">
-                        </button>
-                        <button class="lang-btn" data-lang="ar" onclick="changeLanguage('ar')" title="العربية">
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/0/0d/Flag_of_Saudi_Arabia.svg" alt="العربية">
-                        </button>
-                    </div>
                     <button class="user-avatar-btn" onclick="toggleUserMenu()">
                         {% if user.picture %}
                         <img src="{{ user.picture }}" alt="{{ user.name }}">
                         {% else %}
-                        <span style="display: flex; align-items: center; justify-content: center; height: 100%; background: #4a7ba7; color: white; font-weight: bold;">
-                            {{ user.name[0].upper() }}
-                        </span>
+                        {{ user.name[0].upper() }}
                         {% endif %}
                     </button>
                     <div class="user-dropdown" id="userDropdown">
@@ -160,9 +134,7 @@
             
             <div class="chat-messages" id="chat-messages">
                 <div class="welcome-message">
-                    <div class="bot-avatar">
-                        <img src="/static/images/riquer_logo.png" alt="Institut Alexandre de Riquer" class="chat-logo" onerror="this.style.display='none'">
-                    </div>
+                    <div class="bot-avatar">R</div>
                     <div class="message-content">
                         <p>Hola {{ user.given_name or user.name }}! 👋</p>
                         <p>Sóc en Riquer, l'assistent virtual de l'Institut Alexandre de Riquer.</p>
@@ -173,7 +145,6 @@
                             <li>📋 Justificació de faltes</li>
                             <li>📚 Informació acadèmica</li>
                             <li>🏫 Activitats i serveis de l'institut</li>
-                            <li>Y mes...</li>
                         </ul>
                         <p>En què et puc ajudar?</p>
                     </div>
@@ -186,7 +157,7 @@
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M9 11H3v10h6V11zm4-7H7v17h6V4zm4 3h-6v14h6V7zm4 4h-6v10h6V11z"/>
                         </svg>
-                        <span id="absence-btn-text">Justificar falta</span>
+                        <span>Justificar falta</span>
                     </button>
                     <button class="quick-action-btn" onclick="showMeetingForm()">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -195,7 +166,7 @@
                             <line x1="8" y1="2" x2="8" y2="6"></line>
                             <line x1="3" y1="10" x2="21" y2="10"></line>
                         </svg>
-                        <span id="meeting-btn-text">Sol·licitar reunió</span>
+                        <span>Sol·licitar reunió</span>
                     </button>
                 </div>
                 <form id="chat-form" class="chat-form">
@@ -224,87 +195,43 @@
     </div>
     
     <script>
-        // Datos del usuario desde el servidor
+        // Dades de l'usuari des del servidor
         const userData = {
             nom: "{{ user.name }}",
             contacte: "{{ user.email }}"
         };
         
-        // Toggle del menú de usuario
+        // Toggle del menú d'usuari
         function toggleUserMenu() {
             const dropdown = document.getElementById('userDropdown');
             dropdown.classList.toggle('show');
         }
         
-        // Funciones para botones de acción rápida
-        function showAbsenceForm() {
-            window.showAbsenceForm();
-        }
-        
-        function showMeetingForm() {
-            window.showMeetingForm();
-        }
-        
-        // Cerrar menú al hacer clic fuera
+        // Tancar menú al fer clic fora
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.user-menu')) {
                 document.getElementById('userDropdown').classList.remove('show');
             }
         });
+        
+        // Ajustar alçada real del viewport
+        function ajustarAlturaReal() {
+            const vh = window.innerHeight * 0.01;
+            document.documentElement.style.setProperty('--vh', `${vh}px`);
+        }
+        
+        window.addEventListener('resize', ajustarAlturaReal);
+        window.addEventListener('orientationchange', ajustarAlturaReal);
+        document.addEventListener('DOMContentLoaded', ajustarAlturaReal);
+        
+        // Millorar scroll en mòbil
+        const input = document.getElementById('message-input');
+        input.addEventListener('focus', () => {
+            setTimeout(() => {
+                input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 300);
+        });
     </script>
-    <script src="/static/js/translations.js"></script>
     <script src="/static/js/app.js"></script>
-    <script>
-        // Función para actualizar el idioma del bot
-        window.updateBotLanguage = function(lang) {
-            // Enviar al backend el cambio de idioma
-            fetch('/api/language', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({ language: lang })
-            });
-        };
-        
-        // Aplicar idioma guardado al cargar
-        document.addEventListener('DOMContentLoaded', () => {
-            const savedLang = localStorage.getItem('chatLanguage') || 'ca';
-            changeLanguage(savedLang);
-            
-            // Actualizar botón activo
-            document.querySelectorAll('.lang-btn').forEach(btn => {
-                btn.classList.toggle('active', btn.dataset.lang === savedLang);
-            });
-        });
-        
-        // Manejar clics en botones de idioma
-        document.querySelectorAll('.lang-btn').forEach(btn => {
-            btn.addEventListener('click', function() {
-                document.querySelectorAll('.lang-btn').forEach(b => b.classList.remove('active'));
-                this.classList.add('active');
-            });
-        });
-    </script>
-
-<script>
-  function ajustarAlturaReal() {
-    const vh = window.innerHeight * 0.01;
-    document.documentElement.style.setProperty('--vh', `${vh}px`);
-  }
-
-  window.addEventListener('resize', ajustarAlturaReal);
-  window.addEventListener('orientationchange', ajustarAlturaReal);
-  document.addEventListener('DOMContentLoaded', ajustarAlturaReal);
-</script>
-<script>
-  const input = document.getElementById('message-input');
-  input.addEventListener('focus', () => {
-    setTimeout(() => {
-      input.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 300);
-  });
-</script>
 </body>
-
 </html>
