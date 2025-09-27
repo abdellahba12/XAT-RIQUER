@@ -1,7 +1,6 @@
-Flask
-flask-cors
-google-generativeai
-requests
-authlib
-python-dotenv
-PyPDF2
+Flask==2.3.3
+flask-cors==4.0.0
+google-generativeai==0.3.2
+requests==2.31.0
+authlib==1.2.1
+python-dotenv==1.0.0
