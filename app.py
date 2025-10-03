@@ -33,15 +33,13 @@ else:
 # Configurar OAuth
 oauth = OAuth(app)
 
-# URL base per OAuth callbacks
+# Función para obtener URL base (Railway)
 def get_base_url():
-    # Per Koyeb o altres serveis
-    if request.headers.get('X-Forwarded-Proto'):
-        return f"https://{request.headers.get('Host', '')}"
-    
-    # URL per defecte
-    host = request.headers.get('Host', request.host)
-    return f"https://{host}"
+    # Para Railway
+    if os.environ.get('RAILWAY_STATIC_URL'):
+        return f"https://{os.environ.get('RAILWAY_STATIC_URL')}"
+    # Para desarrollo local
+    return f"http://localhost:{os.environ.get('PORT', 5000)}"
 
 # Registrar Google OAuth
 try:
@@ -71,7 +69,7 @@ except Exception as e:
     logger.error(f"Error inicializando bot: {str(e)}")
     bot = None
 
-# Decorator per requerir login
+# Decorador para requerir login
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -358,7 +356,7 @@ def health():
     return jsonify({
         'status': 'ok', 
         'service': 'Riquer Chat Bot',
-        'environment': 'Koyeb',
+        'environment': 'Railway',
         'oauth_configured': bool(GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET),
         'bot_initialized': bot is not None
     })
@@ -373,7 +371,7 @@ def server_error(e):
     logger.error(f"Server error: {str(e)}")
     return jsonify({'error': 'Internal server error'}), 500
 
-# Per Koyeb
+# Para Railway
 if __name__ == '__main__':
     # Crear directorios si no existen
     os.makedirs('templates', exist_ok=True)
@@ -381,22 +379,19 @@ if __name__ == '__main__':
     os.makedirs('static/css', exist_ok=True)
     os.makedirs('static/js', exist_ok=True)
     
-    # Port per Koyeb
-    port = int(os.environ.get('PORT', 8000))
+    # Obtener port de Railway
+    port = int(os.environ.get('PORT', 5000))
     
-    print("\n🚀 Riquer ChatBot iniciat!")
-    print(f"📍 Port: {port}")
-    print("✅ OAuth configurado" if (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET) else "❌ OAuth NO configurado")
+    print("\n" + "="*50)
+    print("RIQUER CHATBOT - INSTITUT ALEXANDRE DE RIQUER")
+    print("="*50)
+    print(f"Port: {port}")
+    print(f"OAuth: {'✓ Configurat' if (GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET) else '✗ No configurat'}")
+    print(f"Gemini API: {'✓ Configurada' if os.environ.get('API_GEMINI') else '✗ No configurada'}")
+    print(f"Mailgun: {'✓ Configurat' if os.environ.get('MAILGUN_API_KEY') else '✗ No configurat'}")
+    print("="*50 + "\n")
     
-    # Verificar configuració
-    if not GOOGLE_CLIENT_ID:
-        print("⚠️ ADVERTÈNCIA: GOOGLE_CLIENT_ID no està configurat")
-    if not GOOGLE_CLIENT_SECRET:
-        print("⚠️ ADVERTÈNCIA: GOOGLE_CLIENT_SECRET no està configurat")
-    if not os.environ.get('API_GEMINI'):
-        print("⚠️ ADVERTÈNCIA: API_GEMINI no està configurat")
-    
-    # Executar servidor
+    # Ejecutar servidor
     app.run(
         host='0.0.0.0',
         port=port,
