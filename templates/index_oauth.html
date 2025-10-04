@@ -112,7 +112,7 @@
                         {% if user.picture %}
                         <img src="{{ user.picture }}" alt="{{ user.name }}">
                         {% else %}
-                        {{ user.name[0].upper() }}
+                        <span>{{ user.name[0].upper() if user.name else 'U' }}</span>
                         {% endif %}
                     </button>
                     <div class="user-dropdown" id="userDropdown">
@@ -195,26 +195,26 @@
     </div>
     
     <script>
-        // Dades de l'usuari des del servidor
+        // Datos del usuario desde el servidor
         const userData = {
             nom: "{{ user.name }}",
             contacte: "{{ user.email }}"
         };
         
-        // Toggle del menú d'usuari
+        // Toggle del menú de usuario
         function toggleUserMenu() {
             const dropdown = document.getElementById('userDropdown');
             dropdown.classList.toggle('show');
         }
         
-        // Tancar menú al fer clic fora
+        // Cerrar menú al hacer clic fuera
         document.addEventListener('click', (e) => {
             if (!e.target.closest('.user-menu')) {
                 document.getElementById('userDropdown').classList.remove('show');
             }
         });
         
-        // Ajustar alçada real del viewport
+        // Ajustar altura real del viewport para móviles
         function ajustarAlturaReal() {
             const vh = window.innerHeight * 0.01;
             document.documentElement.style.setProperty('--vh', `${vh}px`);
@@ -224,7 +224,7 @@
         window.addEventListener('orientationchange', ajustarAlturaReal);
         document.addEventListener('DOMContentLoaded', ajustarAlturaReal);
         
-        // Millorar scroll en mòbil
+        // Mejorar scroll en móvil cuando se abre el teclado
         const input = document.getElementById('message-input');
         input.addEventListener('focus', () => {
             setTimeout(() => {
