@@ -2,16 +2,11 @@
 let chatMessages = [];
 let teachersList = [];
 
-// userData ja ve definit en el HTML des del servidor
-// const userData = { nom: "...", contacte: "..." };
-
 // Elementos del DOM
 const chatForm = document.getElementById('chat-form');
 const messageInput = document.getElementById('message-input');
 const chatMessagesDiv = document.getElementById('chat-messages');
 const typingIndicator = document.querySelector('.typing-indicator');
-
-// Obtener el botón de enviar correctamente
 const sendBtn = document.querySelector('.send-btn');
 
 // Verificar que los elementos existen
@@ -19,7 +14,7 @@ if (!chatForm || !messageInput || !sendBtn) {
     console.error('Error: No se encontraron elementos del DOM necesarios');
 }
 
-// Funció per carregar la llista de professors al inicialitzar
+// Función para cargar la lista de profesores al inicializar
 async function loadTeachersList() {
     try {
         const response = await fetch('/api/teachers');
@@ -55,14 +50,6 @@ chatForm.addEventListener('submit', async (e) => {
     const message = messageInput.value.trim();
     if (!message) return;
     
-    // Añadir prefijo de idioma si es árabe o español
-    let finalMessage = message;
-    if (currentLanguage === 'ar') {
-        finalMessage = '[AR] ' + message;
-    } else if (currentLanguage === 'es') {
-        finalMessage = '[ES] ' + message;
-    }
-    
     // Agregar mensaje del usuario
     addMessage(message, 'user');
     
@@ -76,23 +63,23 @@ chatForm.addEventListener('submit', async (e) => {
     
     if (intent === 'absence') {
         // Mostrar formulario de justificación
-        addMessage(t('understandAbsence'), 'bot');
+        addMessage("Entenc que vols justificar una falta. Si us plau, omple aquest formulari:", 'bot');
         createAbsenceForm();
     } else if (intent === 'teacher_contact') {
         // Mostrar formulario de contacto
-        addMessage(t('understandContact'), 'bot');
+        addMessage("Vols contactar amb un professor. Si us plau, omple aquest formulari:", 'bot');
         createTeacherContactForm();
     } else {
         // Mostrar indicador de escritura y obtener respuesta normal
         showTypingIndicator();
         
         try {
-            const response = await getBotResponse(finalMessage);
+            const response = await getBotResponse(message);
             hideTypingIndicator();
             addMessage(response, 'bot');
         } catch (error) {
             hideTypingIndicator();
-            addMessage(t('errorSending'), 'bot');
+            addMessage("Ho sento, hi ha hagut un error. Si us plau, torna-ho a intentar.", 'bot');
         }
     }
 });
@@ -106,7 +93,6 @@ function addMessage(text, sender, isForm = false) {
     avatarDiv.className = sender === 'user' ? 'user-avatar' : 'bot-avatar';
     
     if (sender === 'user') {
-        // Usar la inicial del nombre del usuario autenticado
         const userName = userData.nom || 'U';
         avatarDiv.textContent = userName.charAt(0).toUpperCase();
     } else {
@@ -157,7 +143,7 @@ function addMessage(text, sender, isForm = false) {
     });
 }
 
-// Función para formatear mensajes (detectar enlaces, saltos de línea, etc.)
+// Función para formatear mensajes
 function formatMessage(text) {
     // Convertir saltos de línea
     text = text.replace(/\n/g, '<br>');
@@ -182,7 +168,7 @@ function hideTypingIndicator() {
     typingIndicator.style.display = 'none';
 }
 
-// Función para obtener respuesta del bot desde el servidor Flask
+// Función para obtener respuesta del bot
 async function getBotResponse(message) {
     try {
         const response = await fetch('/api/chat', {
@@ -217,65 +203,16 @@ async function getBotResponse(message) {
 function detectIntent(message) {
     const lowerMessage = message.toLowerCase();
     
-    if (lowerMessage.includes('horari') || lowerMessage.includes('horaris')) {
-        return `Els horaris de l'institut són:
-        
-📅 **Horari lectiu:**
-- ESO: 8:00 - 14:30
-- Batxillerat: 8:00 - 14:30
-
-📞 **Horari d'atenció:**
-- Horari lectiu: matins de 8,00 a 14,35.
-- Horari d'atenció al públic: de dilluns a divendres de 8 a 14h
-
-Necessites informació sobre algun horari específic?`;
+    if (lowerMessage.includes('justificar') || lowerMessage.includes('falta') || 
+        lowerMessage.includes('absència') || lowerMessage.includes('absent')) {
+        return 'absence';
+    } else if (lowerMessage.includes('contactar') || lowerMessage.includes('professor') || 
+               lowerMessage.includes('tutor') || lowerMessage.includes('reunió') || 
+               lowerMessage.includes('cita') || lowerMessage.includes('parlar amb')) {
+        return 'teacher_contact';
     }
     
-    if (lowerMessage.includes('tutor') || lowerMessage.includes('professor')) {
-        return `Per contactar amb un tutor o professor, necessito saber:
-
-1. El nom del professor/tutor
-2. El curs de l'alumne
-3. El motiu de la consulta
-
-Amb aquesta informació podré generar un correu electrònic formal per enviar-lo al professor corresponent. Quin professor vols contactar?`;
-    }
-    
-    if (lowerMessage.includes('falta') || lowerMessage.includes('justificar')) {
-        return `Per justificar una falta d'assistència, necessito:
-
-📋 Les següents dades:
-- Nom i cognoms de l'alumne
-- Curs i grup
-- Data/es de l'absència
-- Motiu de la falta
-
-Generaré automàticament un correu a consergeria@gmail.com amb aquesta informació. Vols que procedeixi?`;
-    }
-    
-    if (lowerMessage.includes('contacte') || lowerMessage.includes('contactar')) {
-        return `📞 **Dades de contacte de l'Institut:**
-
-📍 Adreça: C. Sant Joan Bta. de la Salle 6-8 08280 Calaf (Anoia)
-📞 Telèfon: 93 868 04 14
-
-📧 Email general: iescalaf@xtec.cat
-🌐 Web: http://www.inscalaf.cat
-
-En què més et puc ajudar?`;
-    }
-    
-    // Respuesta por defecto
-    return `Entenc que necessites ajuda amb: "${message}". 
-
-Puc ajudar-te amb:
-- 📅 Horaris i calendari
-- 👨‍🏫 Contacte amb professors
-- 📋 Justificació de faltes
-- 📚 Informació acadèmica
-- 🏫 Activitats de l'institut
-
-Si us plau, especifica més la teva consulta perquè pugui ajudar-te millor.`;
+    return null;
 }
 
 // Permitir enviar con Enter (pero Shift+Enter para nueva línea)
@@ -294,18 +231,17 @@ function createAbsenceForm() {
     const today = new Date().toISOString().split('T')[0];
     const formHTML = `
         <form id="${formId}" class="email-form">
-            <h4>${t('absenceFormTitle')}</h4>
-            <div class="form-field" style="animation-delay: 0.1s">
-                <label>${t('studentName')}</label>
+            <h4>📋 Justificació de Falta d'Assistència</h4>
+            <div class="form-field">
+                <label>Nom de l'alumne:</label>
                 <input type="text" name="alumne" required placeholder="Ex: Maria García Pérez" autocomplete="name">
             </div>
-            <div class="form-field" style="animation-delay: 0.2s">
-                <label>${t('courseGroup')}</label>
+            <div class="form-field">
+                <label>Curs i grup:</label>
                 <input type="text" name="curs" required placeholder="Ex: 2n ESO A" list="courses">
                 <datalist id="courses">
                     <option value="1r ESO A">
                     <option value="1r ESO B">
-                    <option value="2n ESO A">
                     <option value="2n ESO B">
                     <option value="3r ESO A">
                     <option value="3r ESO B">
@@ -315,27 +251,27 @@ function createAbsenceForm() {
                     <option value="2n Batxillerat">
                 </datalist>
             </div>
-            <div class="form-field" style="animation-delay: 0.3s">
-                <label>${t('absenceDate')}</label>
+            <div class="form-field">
+                <label>Data de l'absència:</label>
                 <input type="date" name="data" required value="${today}" max="${today}">
             </div>
-            <div class="form-field" style="animation-delay: 0.4s">
-                <label>${t('reason')}</label>
+            <div class="form-field">
+                <label>Motiu:</label>
                 <textarea name="motiu" required placeholder="Ex: Visita mèdica programada" rows="3"></textarea>
             </div>
-            <div class="form-actions" style="animation-delay: 0.5s">
+            <div class="form-actions">
                 <button type="submit" class="btn-primary">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
                     </svg>
-                    ${t('sendJustification')}
+                    Enviar justificació
                 </button>
                 <button type="button" class="btn-secondary" onclick="cancelForm('${formId}')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
                        <line x1="6" y1="6" x2="18" y2="18"></line>
                    </svg>
-                   ${t('cancel')}
+                   Cancel·lar
                </button>
            </div>
        </form>
@@ -370,11 +306,11 @@ function createAbsenceForm() {
                    // Ocultar formulario después de enviar
                    e.target.style.display = 'none';
                } catch (error) {
-                   addMessage(t('errorSending'), 'bot');
+                   addMessage("Ho sento, hi ha hagut un error. Si us plau, torna-ho a intentar.", 'bot');
                    // Reactivar formulario en caso de error
                    e.target.style.opacity = '1';
                    e.target.querySelectorAll('input, textarea, button').forEach(el => el.disabled = false);
-                   submitBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg> ${t('sendJustification')}`;
+                   submitBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg> Enviar justificació`;
                }
            });
        }
@@ -385,7 +321,7 @@ function createAbsenceForm() {
 function createTeacherContactForm() {
     const formId = 'teacher-form-' + Date.now();
     
-    // Generar opciones del datalist amb la llista carregada
+    // Generar opciones del datalist con la lista cargada
     let teacherOptions = '';
     teachersList.forEach(teacher => {
         teacherOptions += `<option value="${teacher.name}" data-email="${teacher.email}">`;
@@ -393,54 +329,54 @@ function createTeacherContactForm() {
     
     const formHTML = `
         <form id="${formId}" class="email-form">
-            <h4>${t('teacherFormTitle')}</h4>
-            <div class="form-field" style="animation-delay: 0.1s">
-                <label>${t('teacherName')}</label>
+            <h4>📧 Contactar amb Professor/a</h4>
+            <div class="form-field">
+                <label>Nom del professor/a:</label>
                 <input type="text" name="professor" required placeholder="Ex: Roger Codina" list="teachers-${formId}">
                 <datalist id="teachers-${formId}">
                     ${teacherOptions}
                 </datalist>
             </div>
-            <div class="form-field" style="animation-delay: 0.2s">
-                <label>${t('subject')}</label>
+            <div class="form-field">
+                <label>Assumpte:</label>
                 <select name="assumpte" required>
-                    <option value="">${t('selectOption')}</option>
-                    <option value="reunio">${t('requestMeeting')}</option>
-                    <option value="consulta">${t('academicQuery')}</option>
-                    <option value="seguiment">${t('studentFollowup')}</option>
-                    <option value="altre">${t('other')}</option>
+                    <option value="">Selecciona...</option>
+                    <option value="reunio">Sol·licitar reunió</option>
+                    <option value="consulta">Consulta acadèmica</option>
+                    <option value="seguiment">Seguiment de l'alumne</option>
+                    <option value="altre">Altre</option>
                 </select>
             </div>
-            <div class="form-field" style="animation-delay: 0.3s">
-                <label>${t('message')}</label>
-                <textarea name="missatge" required placeholder="${currentLanguage === 'ar' ? 'اكتب رسالتك هنا...' : currentLanguage === 'es' ? 'Escribe tu mensaje aquí...' : 'Escriu el teu missatge aquí...'}" rows="4"></textarea>
+            <div class="form-field">
+                <label>Missatge:</label>
+                <textarea name="missatge" required placeholder="Escriu el teu missatge aquí..." rows="4"></textarea>
             </div>
-            <div class="form-field" style="animation-delay: 0.4s">
-                <label>${t('availability')}</label>
-                <input type="text" name="disponibilitat" placeholder="${currentLanguage === 'ar' ? 'مثال: الإثنين والأربعاء بعد الظهر' : currentLanguage === 'es' ? 'Ej: Lunes y miércoles por la tarde' : 'Ex: Dilluns i dimecres a la tarda'}">
+            <div class="form-field">
+                <label>Disponibilitat (opcional):</label>
+                <input type="text" name="disponibilitat" placeholder="Ex: Dilluns i dimecres a la tarda">
             </div>
             
-            <!-- Vista previa del correu que s'enviarà -->
-            <div class="form-field email-preview" id="emailPreview-${formId}" style="display: none; animation-delay: 0.5s">
+            <!-- Vista previa del email -->
+            <div class="form-field email-preview" id="emailPreview-${formId}" style="display: none;">
                 <label>📧 Correu de destinació:</label>
                 <div class="email-info">
                     <span id="emailAddress-${formId}">professor@inscalaf.cat</span>
                 </div>
             </div>
             
-            <div class="form-actions" style="animation-delay: 0.6s">
+            <div class="form-actions">
                 <button type="submit" class="btn-primary">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
                     </svg>
-                    ${t('sendMessage')}
+                    Enviar missatge
                 </button>
                 <button type="button" class="btn-secondary" onclick="cancelForm('${formId}')">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <line x1="18" y1="6" x2="6" y2="18"></line>
                         <line x1="6" y1="6" x2="18" y2="18"></line>
                     </svg>
-                    ${t('cancel')}
+                    Cancel·lar
                 </button>
             </div>
         </form>
@@ -455,7 +391,7 @@ function createTeacherContactForm() {
         const emailPreview = document.getElementById(`emailPreview-${formId}`);
         const emailAddress = document.getElementById(`emailAddress-${formId}`);
         
-        // Mostrar vista previa del correu quan es selecciona un professor
+        // Mostrar vista previa del correo cuando se selecciona un profesor
         professorInput.addEventListener('input', function() {
             const selectedName = this.value;
             const teacher = teachersList.find(t => t.name === selectedName);
@@ -464,15 +400,11 @@ function createTeacherContactForm() {
                 emailAddress.textContent = teacher.email;
                 emailPreview.style.display = 'block';
             } else if (selectedName.trim()) {
-                // Generar email automàticament per noms que no estan a la llista
+                // Generar email automáticamente para nombres no en la lista
                 const autoEmail = selectedName.toLowerCase()
-                    .replace(' ', '.')
-                    .replace(/[àáâã]/g, 'a')
-                    .replace(/[èéêë]/g, 'e')
-                    .replace(/[ìíîï]/g, 'i')
-                    .replace(/[òóôõ]/g, 'o')
-                    .replace(/[ùúûü]/g, 'u')
-                    .replace(/ç/g, 'c') + '@inscalaf.cat';
+                    .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Eliminar acentos
+                    .replace(/\s+/g, '.')
+                    .replace(/[^a-z0-9.]/g, '') + '@inscalaf.cat';
                 emailAddress.textContent = autoEmail;
                 emailPreview.style.display = 'block';
             } else {
@@ -504,11 +436,11 @@ function createTeacherContactForm() {
                     // Ocultar formulario después de enviar
                     e.target.style.display = 'none';
                 } catch (error) {
-                    addMessage(t('errorSending'), 'bot');
+                    addMessage("Ho sento, hi ha hagut un error. Si us plau, torna-ho a intentar.", 'bot');
                     // Reactivar formulario en caso de error
                     e.target.style.opacity = '1';
                     e.target.querySelectorAll('input, textarea, button, select').forEach(el => el.disabled = false);
-                    submitBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg> ${t('sendMessage')}`;
+                    submitBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg> Enviar missatge`;
                 }
             });
         }
@@ -526,44 +458,27 @@ function cancelForm(formId) {
 
 // Función para mostrar formulario de justificación (acción rápida)
 function showAbsenceForm() {
-    addMessage(currentLanguage === 'ar' ? 'أريد تبرير غياب' : 
-               currentLanguage === 'es' ? 'Quiero justificar una falta' : 
-               'Vull justificar una falta', 'user');
-    addMessage(t('understandAbsence'), 'bot');
+    addMessage('Vull justificar una falta', 'user');
+    addMessage("Entenc que vols justificar una falta. Si us plau, omple aquest formulari:", 'bot');
     createAbsenceForm();
 }
 
 // Función para mostrar formulario de reunión (acción rápida)
 function showMeetingForm() {
-    addMessage(currentLanguage === 'ar' ? 'أريد طلب اجتماع مع معلم' : 
-               currentLanguage === 'es' ? 'Quiero solicitar una reunión con un profesor' : 
-               'Vull sol·licitar una reunió amb un professor', 'user');
-    addMessage(t('understandContact'), 'bot');
+    addMessage('Vull sol·licitar una reunió amb un professor', 'user');
+    addMessage("Vols contactar amb un professor. Si us plau, omple aquest formulari:", 'bot');
     createTeacherContactForm();
 }
 
-// Detectar intenciones en el mensaje
-function detectIntent(message) {
-    const lowerMessage = message.toLowerCase();
-    
-    if (lowerMessage.includes('justificar') || lowerMessage.includes('falta') || lowerMessage.includes('absència')) {
-        return 'absence';
-    } else if (lowerMessage.includes('contactar') || lowerMessage.includes('professor') || lowerMessage.includes('tutor') || lowerMessage.includes('reunió')) {
-        return 'teacher_contact';
-    }
-    
-    return null;
-}
-
-// Animación inicial
+// Animación inicial al cargar la página
 window.addEventListener('load', async () => {
     console.log('Chat carregat per a:', userData.nom);
     
-    // Carregar llista de professors
+    // Cargar lista de profesores
     await loadTeachersList();
     
     // Verificar elementos críticos
-    console.log('Elementos encontrados:', {
+    console.log('Elements trobats:', {
         form: !!chatForm,
         input: !!messageInput,
         button: !!sendBtn,
@@ -578,26 +493,15 @@ window.addEventListener('load', async () => {
 
 // Función para manejar el redimensionamiento de la ventana
 window.addEventListener('resize', () => {
-    if (window.innerWidth < 768) {
+    const chatContainer = document.getElementById('chat-container');
+    if (window.innerWidth < 768 && chatContainer) {
         chatContainer.style.height = '100vh';
-    } else {
+    } else if (chatContainer) {
         chatContainer.style.height = '90vh';
     }
 });
 
-// Función para detectar y manejar menciones de correos para profesores
-function checkForEmailGeneration(message) {
-    const emailKeywords = ['enviar correu', 'contactar', 'reunió', 'cita', 'parlar amb'];
-    const hasEmailIntent = emailKeywords.some(keyword => 
-        message.toLowerCase().includes(keyword)
-    );
-    
-    if (hasEmailIntent) {
-        console.log('Detectada intención de enviar email');
-    }
-}
-
-// Guardar conversación en localStorage (opcional)
+// Guardar conversación en localStorage
 function saveConversation() {
     localStorage.setItem('riquer_chat_history', JSON.stringify({
         userData,
@@ -621,52 +525,20 @@ function loadConversation() {
     return null;
 }
 
-// Función para exportar conversación
-function exportConversation() {
-    const conversationText = chatMessages.map(msg => {
-        const time = new Date(msg.timestamp).toLocaleString('ca-ES');
-        const sender = msg.sender === 'user' ? userData.nom : 'Riquer';
-        return `[${time}] ${sender}: ${msg.text}`;
-    }).join('\n\n');
-    
-    const blob = new Blob([conversationText], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `conversa_riquer_${new Date().toISOString().split('T')[0]}.txt`;
-    a.click();
-}
-
-// Función para limpiar conversación
-function clearConversation() {
-    if (confirm('Estàs segur que vols esborrar tota la conversa?')) {
-        chatMessages = [];
-        const messages = chatMessagesDiv.querySelectorAll('.message');
-        messages.forEach(msg => msg.remove());
-        localStorage.removeItem('riquer_chat_history');
-    }
-}
-
-// Función para mostrar ayuda
-function showHelp() {
-    addMessage(`🔍 **Com puc ajudar-te:**
-
-**Comandes ràpides:**
-- "Horaris" → Consultar horaris
-- "Contactar [nom professor]" → Enviar email
-- "Justificar falta" → Justificar absència
-- "Calendari" → Veure calendari escolar
-- "Activitats" → Activitats extraescolars
-
-**Funcions especials:**
-- Puc generar correus automàticament
-- Puc proporcionar informació de contacte
-
-Escriu la teva pregunta de forma natural!`, 'bot');
-}
-
 // Auto-guardar conversación cada 5 minutos
 setInterval(saveConversation, 5 * 60 * 1000);
 
 // Guardar al salir de la página
 window.addEventListener('beforeunload', saveConversation);
+
+// Manejar errores globales
+window.addEventListener('error', (e) => {
+    console.error('Error global:', e.error);
+});
+
+// Inicializar tooltips si es necesario
+document.querySelectorAll('[title]').forEach(element => {
+    element.addEventListener('mouseenter', function() {
+        this.style.cursor = 'help';
+    });
+});
