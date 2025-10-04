@@ -20,227 +20,7 @@ if not api_key:
 genai.configure(api_key=api_key)
 
 class RiquerChatBot:
-    def _is_form_submission(self, message: str) -> bool:
-        """Detecta si el mensaje es un formulario"""
-        form_keywords = [
-            "Justificar falta - Alumne:",
-            "Contactar professor",
-            "- Assumpte:",
-            "Missatge:"
-        ]
-        return any(keyword in message for keyword in form_keywords)
-    
-    def _handle_form_submission(self, message: str, user_data: Dict) -> str:
-        """Controla els formularis i envia mails"""
-        try:
-            if "Justificar falta" in message:
-                return self._handle_absence_form(message, user_data)
-            elif "Contactar professor" in message:
-                return self._handle_teacher_contact_form(message, user_data)
-            else:
-                return "No s'ha pogut processar el formulari. Si us plau, torna-ho a intentar."
-        except Exception as e:
-            logger.error(f"Error manejando formulario: {str(e)}")
-            return f"⚠️ Error al processar el formulari: {str(e)}"
-    
-    def _handle_absence_form(self, message: str, user_data: Dict) -> str:
-        """Procesa el formulari de faltes"""
-        try:
-            # Extreure dades
-            lines = message.split('\n')
-            data = {}
-            
-            for line in lines:
-                line = line.strip()
-                if line.startswith('Justificar falta - Alumne:'):
-                    parts = line.replace('Justificar falta - ', '').split(', ')
-                    for part in parts:
-                        if part.startswith('Alumne:'):
-                            data['alumne'] = part.replace('Alumne:', '').strip()
-                        elif part.startswith('Curs:'):
-                            data['curs'] = part.replace('Curs:', '').strip()
-                        elif part.startswith('Data:'):
-                            data['data'] = part.replace('Data:', '').strip()
-                        elif part.startswith('Motiu:'):
-                            data['motiu'] = part.replace('Motiu:', '').strip()
-            
-            alumne = data.get('alumne', '').strip()
-            curs = data.get('curs', '').strip()
-            data_falta = data.get('data', '').strip()
-            motiu = data.get('motiu', '').strip()
-            
-            # Validar dades
-            if not all([alumne, curs, data_falta, motiu]):
-                return "⚠️ Si us plau, completa tots els camps requerits"
-            
-            # Construir mail
-            subject = f"Justificació de falta - {alumne} ({curs})"
-            body = f"""Benvolguts,
-
-Sol·licito justificar la falta d'assistència següent:
-
-Alumne/a: {alumne}
-Curs: {curs}  
-Data de la falta: {data_falta}
-Motiu: {motiu}
-
-Atentament,
-{user_data.get('nom', 'Família')}
-Contacte: {user_data.get('contacte', '')}
-
----
-Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
-{datetime.now().strftime('%d/%m/%Y %H:%M')}"""
-            
-            # Intentar enviar email
-            result = self.send_email(subject, body, ["abdellahbaghalbachiri@gmail.com"])
-            
-            if result["status"] == "success":
-                return f"✅ Justificació enviada correctament!\n\nDestinatari: abdellahbaghalbachiri@gmail.com\n\nEn breu rebràs confirmació de recepció."
-            else:
-                return f"❌ Error al enviar la justificació.\n\nAlternatives:\n• Trucar al 93 868 04 14\n• Enviar email manualment a abdellahbaghalbachiri@gmail.com"
-                
-        except Exception as e:
-            logger.error(f"Error en justificació: {str(e)}")
-            return f"⚠️ Error al processar la justificació: {str(e)}"
-    
-    def _handle_teacher_contact_form(self, message: str, user_data: Dict) -> str:
-        """Procesa el formulario de contacto con profesor"""
-        try:
-            # Extreure dades
-            professor_name = ""
-            subject = ""
-            message_content = ""
-            
-            if "Contactar professor " in message:
-                start = message.find("Contactar professor ") + len("Contactar professor ")
-                end = message.find(" - Assumpte:", start)
-                if end > start:
-                    professor_name = message[start:end].strip()
-            
-            if "Assumpte: " in message:
-                start = message.find("Assumpte: ") + len("Assumpte: ")
-                end = message.find(",", start)
-                if end == -1:
-                    end = message.find("\n", start)
-                if end == -1:
-                    end = len(message)
-                subject = message[start:end].strip()
-            
-            if "Missatge: " in message:
-                start = message.find("Missatge: ") + len("Missatge: ")
-                end = message.find(", Disponibilitat:", start)
-                if end == -1:
-                    end = len(message)
-                message_content = message[start:end].strip()
-            
-            # Validar dades
-            if not all([professor_name, subject, message_content]):
-                return "⚠️ Si us plau, completa tots els camps requerits"
-            
-            # Generar email del professor
-            email_name = professor_name.lower().replace(' ', '.')
-            professor_email = f"{email_name}@inscalaf.cat"
-            
-            # Construir email
-            email_subject = f"{subject} - {user_data.get('nom', 'Família')}"
-            email_body = f"""Benvolgut/da {professor_name},
-
-{message_content}
-
-Atentament,
-{user_data.get('nom', 'Família')}
-{user_data.get('contacte', '')}
-
----
-Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
-{datetime.now().strftime('%d/%m/%Y %H:%M')}"""
-            
-            # Intentar enviar email
-            result = self.send_email(email_subject, email_body, [professor_email])
-            
-            if result["status"] == "success":
-                return f"✅ Missatge enviat correctament!\n\nDestinatari: {professor_email}\n\nEl professor/a rebrà el teu missatge i et respondrà al teu correu."
-            else:
-                return f"❌ Error al enviar el missatge.\n\nAlternatives:\n• Trucar al 93 868 04 14\n• Enviar email directament a {professor_email}"
-                
-        except Exception as e:
-            logger.error(f"Error contactando profesor: {str(e)}")
-            return f"⚠️ Error al contactar amb el professor: {str(e)}"
-    
-    def _format_response(self, response: str) -> str:
-        """Formatea la respuesta para mejorar la presentación"""
-        # Eliminar asteriscos de formato markdown
-        response = response.replace('**', '')
-        response = response.replace('*', '')
-        
-        # Asegurar salto de línea al final
-        if not response.endswith('\n'):
-            response += '\n'
-        
-        return response.strip()
-    
-    def get_system_status(self) -> Dict:
-        """Estado del sistema"""
-        status = {
-            'chat_initialized': self.chat is not None,
-            'model_available': self.model is not None,
-            'files_uploaded_to_gemini': len(self.uploaded_files),
-            'file_contents_backup': len(self.file_contents),
-            'api_key_configured': bool(os.environ.get("API_GEMINI")),
-            'mailgun_configured': all([
-                os.environ.get("MAILGUN_API_KEY"),
-                os.environ.get("MAILGUN_DOMAIN")
-            ])
-        }
-        
-        return status
-    
-    def health_check(self) -> str:
-        """Comprobación de salud del sistema"""
-        status = self.get_system_status()
-        
-        health_report = "🔍 **Informe d'Estat del Sistema**\n\n"
-        
-        # Estado del chat
-        if status['chat_initialized'] and status['model_available']:
-            health_report += "✅ Chat: Operatiu\n"
-        else:
-            health_report += "❌ Chat: Error d'inicialització\n"
-        
-        # Archivos
-        health_report += f"📁 Arxius pujats a Gemini: {status['files_uploaded_to_gemini']}\n"
-        health_report += f"📄 Còpies de seguretat: {status['file_contents_backup']}\n"
-        
-        # Configuración
-        health_report += f"{'✅' if status['api_key_configured'] else '❌'} API Gemini: {'Configurada' if status['api_key_configured'] else 'No configurada'}\n"
-        health_report += f"{'✅' if status['mailgun_configured'] else '❌'} Mailgun: {'Configurat' if status['mailgun_configured'] else 'No configurat'}\n"
-        
-        return health_report
-
-# Crear instancia global
-bot = RiquerChatBot()
-
-# Funciones de utilidad para Flask
-def process_user_message(message: str, user_name: str, user_contact: str) -> str:
-    """Procesa mensajes para la interfaz Flask"""
-    user_data = {
-        'nom': user_name,
-        'contacte': user_contact
-    }
-    return bot.process_message(message, user_data)
-
-def get_system_health() -> str:
-    """Obtiene el estado de salud del sistema"""
-    return bot.health_check()
-
-def get_teachers_for_form() -> List[Dict]:
-    """Obtiene la lista de profesores para formularios"""
-    return bot.get_teachers_list()
-
-def get_bot_status() -> Dict:
-    """Obtiene el estado detallado del bot"""
-    return bot.get_system_status() __init__(self):
+    def __init__(self):
         self.model = None
         self.chat = None
         self.uploaded_files = []  # Llista d'arxius pujats a l'API de Gemini
@@ -507,7 +287,208 @@ RECORDA:
             logger.error(f"Error procesando mensaje: {str(e)}")
             return "Ho sento, hi ha hagut un error processant la teva consulta. Si us plau, torna-ho a intentar."
     
-# Funciones de utilidad para Flask (al final del archivo)
+    def _is_form_submission(self, message: str) -> bool:
+        """Detecta si el mensaje es un formulario"""
+        form_keywords = [
+            "Justificar falta - Alumne:",
+            "Contactar professor",
+            "- Assumpte:",
+            "Missatge:"
+        ]
+        return any(keyword in message for keyword in form_keywords)
+    
+    def _handle_form_submission(self, message: str, user_data: Dict) -> str:
+        """Controla els formularis i envia mails"""
+        try:
+            if "Justificar falta" in message:
+                return self._handle_absence_form(message, user_data)
+            elif "Contactar professor" in message:
+                return self._handle_teacher_contact_form(message, user_data)
+            else:
+                return "No s'ha pogut processar el formulari. Si us plau, torna-ho a intentar."
+        except Exception as e:
+            logger.error(f"Error manejando formulario: {str(e)}")
+            return f"⚠️ Error al processar el formulari: {str(e)}"
+    
+    def _handle_absence_form(self, message: str, user_data: Dict) -> str:
+        """Procesa el formulari de faltes"""
+        try:
+            # Extreure dades
+            lines = message.split('\n')
+            data = {}
+            
+            for line in lines:
+                line = line.strip()
+                if line.startswith('Justificar falta - Alumne:'):
+                    parts = line.replace('Justificar falta - ', '').split(', ')
+                    for part in parts:
+                        if part.startswith('Alumne:'):
+                            data['alumne'] = part.replace('Alumne:', '').strip()
+                        elif part.startswith('Curs:'):
+                            data['curs'] = part.replace('Curs:', '').strip()
+                        elif part.startswith('Data:'):
+                            data['data'] = part.replace('Data:', '').strip()
+                        elif part.startswith('Motiu:'):
+                            data['motiu'] = part.replace('Motiu:', '').strip()
+            
+            alumne = data.get('alumne', '').strip()
+            curs = data.get('curs', '').strip()
+            data_falta = data.get('data', '').strip()
+            motiu = data.get('motiu', '').strip()
+            
+            # Validar dades
+            if not all([alumne, curs, data_falta, motiu]):
+                return "⚠️ Si us plau, completa tots els camps requerits"
+            
+            # Construir mail
+            subject = f"Justificació de falta - {alumne} ({curs})"
+            body = f"""Benvolguts,
+
+Sol·licito justificar la falta d'assistència següent:
+
+Alumne/a: {alumne}
+Curs: {curs}  
+Data de la falta: {data_falta}
+Motiu: {motiu}
+
+Atentament,
+{user_data.get('nom', 'Família')}
+Contacte: {user_data.get('contacte', '')}
+
+---
+Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
+{datetime.now().strftime('%d/%m/%Y %H:%M')}"""
+            
+            # Intentar enviar email
+            result = self.send_email(subject, body, ["abdellahbaghalbachiri@gmail.com"])
+            
+            if result["status"] == "success":
+                return f"✅ Justificació enviada correctament!\n\nDestinatari: abdellahbaghalbachiri@gmail.com\n\nEn breu rebràs confirmació de recepció."
+            else:
+                return f"❌ Error al enviar la justificació.\n\nAlternatives:\n• Trucar al 93 868 04 14\n• Enviar email manualment a abdellahbaghalbachiri@gmail.com"
+                
+        except Exception as e:
+            logger.error(f"Error en justificació: {str(e)}")
+            return f"⚠️ Error al processar la justificació: {str(e)}"
+    
+    def _handle_teacher_contact_form(self, message: str, user_data: Dict) -> str:
+        """Procesa el formulario de contacto con profesor"""
+        try:
+            # Extreure dades
+            professor_name = ""
+            subject = ""
+            message_content = ""
+            
+            if "Contactar professor " in message:
+                start = message.find("Contactar professor ") + len("Contactar professor ")
+                end = message.find(" - Assumpte:", start)
+                if end > start:
+                    professor_name = message[start:end].strip()
+            
+            if "Assumpte: " in message:
+                start = message.find("Assumpte: ") + len("Assumpte: ")
+                end = message.find(",", start)
+                if end == -1:
+                    end = message.find("\n", start)
+                if end == -1:
+                    end = len(message)
+                subject = message[start:end].strip()
+            
+            if "Missatge: " in message:
+                start = message.find("Missatge: ") + len("Missatge: ")
+                end = message.find(", Disponibilitat:", start)
+                if end == -1:
+                    end = len(message)
+                message_content = message[start:end].strip()
+            
+            # Validar dades
+            if not all([professor_name, subject, message_content]):
+                return "⚠️ Si us plau, completa tots els camps requerits"
+            
+            # Generar email del professor
+            email_name = professor_name.lower().replace(' ', '.')
+            professor_email = f"{email_name}@inscalaf.cat"
+            
+            # Construir email
+            email_subject = f"{subject} - {user_data.get('nom', 'Família')}"
+            email_body = f"""Benvolgut/da {professor_name},
+
+{message_content}
+
+Atentament,
+{user_data.get('nom', 'Família')}
+{user_data.get('contacte', '')}
+
+---
+Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
+{datetime.now().strftime('%d/%m/%Y %H:%M')}"""
+            
+            # Intentar enviar email
+            result = self.send_email(email_subject, email_body, [professor_email])
+            
+            if result["status"] == "success":
+                return f"✅ Missatge enviat correctament!\n\nDestinatari: {professor_email}\n\nEl professor/a rebrà el teu missatge i et respondrà al teu correu."
+            else:
+                return f"❌ Error al enviar el missatge.\n\nAlternatives:\n• Trucar al 93 868 04 14\n• Enviar email directament a {professor_email}"
+                
+        except Exception as e:
+            logger.error(f"Error contactando profesor: {str(e)}")
+            return f"⚠️ Error al contactar amb el professor: {str(e)}"
+    
+    def _format_response(self, response: str) -> str:
+        """Formatea la respuesta para mejorar la presentación"""
+        # Eliminar asteriscos de formato markdown
+        response = response.replace('**', '')
+        response = response.replace('*', '')
+        
+        # Asegurar salto de línea al final
+        if not response.endswith('\n'):
+            response += '\n'
+        
+        return response.strip()
+    
+    def get_system_status(self) -> Dict:
+        """Estado del sistema"""
+        status = {
+            'chat_initialized': self.chat is not None,
+            'model_available': self.model is not None,
+            'files_uploaded_to_gemini': len(self.uploaded_files),
+            'file_contents_backup': len(self.file_contents),
+            'api_key_configured': bool(os.environ.get("API_GEMINI")),
+            'mailgun_configured': all([
+                os.environ.get("MAILGUN_API_KEY"),
+                os.environ.get("MAILGUN_DOMAIN")
+            ])
+        }
+        
+        return status
+    
+    def health_check(self) -> str:
+        """Comprobación de salud del sistema"""
+        status = self.get_system_status()
+        
+        health_report = "🔍 **Informe d'Estat del Sistema**\n\n"
+        
+        # Estado del chat
+        if status['chat_initialized'] and status['model_available']:
+            health_report += "✅ Chat: Operatiu\n"
+        else:
+            health_report += "❌ Chat: Error d'inicialització\n"
+        
+        # Archivos
+        health_report += f"📁 Arxius pujats a Gemini: {status['files_uploaded_to_gemini']}\n"
+        health_report += f"📄 Còpies de seguretat: {status['file_contents_backup']}\n"
+        
+        # Configuración
+        health_report += f"{'✅' if status['api_key_configured'] else '❌'} API Gemini: {'Configurada' if status['api_key_configured'] else 'No configurada'}\n"
+        health_report += f"{'✅' if status['mailgun_configured'] else '❌'} Mailgun: {'Configurat' if status['mailgun_configured'] else 'No configurat'}\n"
+        
+        return health_report
+
+# Crear instancia global
+bot = RiquerChatBot()
+
+# Funciones de utilidad para Flask
 def process_user_message(message: str, user_name: str, user_contact: str) -> str:
     """Procesa mensajes para la interfaz Flask"""
     user_data = {
