@@ -26,7 +26,7 @@
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
     background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-    min-height: 100dvh;
+    min-height: 100vh;
     color: var(--text-primary);
     line-height: 1.5;
 }
@@ -38,138 +38,6 @@ body {
     align-items: center;
     justify-content: center;
     padding: 20px;
-}
-
-/* Sección del formulario */
-.form-section {
-    width: 100%;
-    max-width: 500px;
-    animation: fadeInUp 0.6s ease-out;
-}
-
-.logo-container {
-    text-align: center;
-    margin-bottom: 30px;
-}
-
-.logo {
-    width: 150px;
-    height: auto;
-    border-radius: 16px;
-    box-shadow: var(--shadow-md);
-    transition: transform 0.3s ease;
-}
-
-.logo:hover {
-    transform: scale(1.05);
-}
-
-.welcome-section {
-    text-align: center;
-    margin-bottom: 30px;
-}
-
-.welcome-section h1 {
-    font-size: 28px;
-    color: var(--primary-color);
-    margin-bottom: 10px;
-    font-weight: 700;
-}
-
-.subtitle {
-    color: var(--text-secondary);
-    font-size: 16px;
-}
-
-/* Tarjeta del formulario */
-.form-card {
-    background: white;
-    border-radius: 20px;
-    padding: 40px;
-    box-shadow: var(--shadow-lg);
-}
-
-.form-card h2 {
-    color: var(--primary-color);
-    margin-bottom: 10px;
-    font-size: 24px;
-}
-
-.form-description {
-    color: var(--text-secondary);
-    margin-bottom: 30px;
-}
-
-/* Grupos de formulario */
-.form-group {
-    position: relative;
-    margin-bottom: 25px;
-}
-
-.form-group label {
-    display: block;
-    margin-bottom: 8px;
-    color: var(--text-primary);
-    font-weight: 500;
-    font-size: 14px;
-}
-
-.form-group input {
-    width: 100%;
-    padding: 12px 45px 12px 15px;
-    border: 2px solid var(--border-color);
-    border-radius: 12px;
-    font-size: 16px;
-    transition: all 0.3s ease;
-    background-color: #fafafa;
-}
-
-.form-group input:focus {
-    outline: none;
-    border-color: var(--primary-color);
-    background-color: white;
-    box-shadow: 0 0 0 4px rgba(42, 93, 132, 0.1);
-}
-
-.input-icon {
-    position: absolute;
-    right: 15px;
-    top: 38px;
-    font-size: 20px;
-    color: var(--text-secondary);
-}
-
-/* Botón de envío */
-.submit-btn {
-    width: 100%;
-    padding: 14px 24px;
-    background: linear-gradient(135deg, var(--primary-color), var(--primary-light));
-    color: white;
-    border: none;
-    border-radius: 12px;
-    font-size: 16px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    box-shadow: var(--shadow-md);
-}
-
-.submit-btn:hover {
-    background: linear-gradient(135deg, var(--primary-dark), var(--primary-color));
-    transform: translateY(-2px);
-    box-shadow: var(--shadow-lg);
-}
-
-.btn-icon {
-    transition: transform 0.3s ease;
-}
-
-.submit-btn:hover .btn-icon {
-    transform: translateX(5px);
 }
 
 /* Sección del chat */
@@ -230,20 +98,6 @@ body {
     animation: pulse 2s infinite;
 }
 
-.menu-btn {
-    background: none;
-    border: none;
-    color: white;
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 8px;
-    transition: background 0.3s ease;
-}
-
-.menu-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-}
-
 /* Área de mensajes */
 .chat-messages {
     flex: 1;
@@ -259,87 +113,31 @@ body {
     animation: fadeIn 0.6s ease-out;
 }
 
-.bot-avatar {
-    width: 40px;
-    height: 40px;
-    background: var(--primary-color);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: bold;
-    flex-shrink: 0;
-}
-
 .welcome-message .message-content {
     background: white;
     padding: 16px 20px;
     border-radius: 18px;
     box-shadow: var(--shadow-sm);
     max-width: 70%;
-    word-wrap: break-word;
-    overflow-wrap: break-word;
-    line-height: 1.45;
+    line-height: 1.5;
 }
 
-/* Estilos generales para el contenido de mensajes */
-.message-content {
-    line-height: 1.3;
-}
-
-.message-content p,
 .welcome-message .message-content p {
     margin: 0;
-    line-height: 1.3;
-}
-
-.message-content p + p {
-    margin-top: 6px;
-}
-
-.message-content ul,
-.welcome-message .message-content ul {
-    margin: 6px 0 6px 0;
-    padding-left: 20px;
     line-height: 1.4;
 }
 
-.message-content li,
-.welcome-message .message-content li {
-    margin-bottom: 4px;
-}
-
-.message-content li:last-child,
-.welcome-message .message-content li:last-child {
-    margin-bottom: 0;
-}
-
-/* Ajuste específico para el mensaje de bienvenida */
-.welcome-message .message-content {
-    font-size: 15px;
-    padding: 14px 18px;
-}
-
-/* Espaciado ultra compacto para bienvenida */
-.welcome-message .message-content p:first-child {
-    margin-bottom: 5px;
-}
-
-.welcome-message .message-content p:nth-child(2) {
-    margin-bottom: 8px;
-}
-
-.welcome-message .message-content p:nth-child(3) {
-    margin-bottom: 0; /* Sin espacio antes de la lista */
+.welcome-message .message-content p + p {
+    margin-top: 8px;
 }
 
 .welcome-message .message-content ul {
-    margin: 0 0 8px 0; /* Sin margen superior */
+    margin: 10px 0;
+    padding-left: 20px;
 }
 
-.welcome-message .message-content p:last-child {
-    margin: 0;
+.welcome-message .message-content li {
+    margin-bottom: 6px;
 }
 
 /* Mensajes del usuario y bot */
@@ -391,7 +189,6 @@ body {
     word-wrap: break-word;
     word-break: break-word;
     overflow-wrap: break-word;
-    
     max-width: 100%;
     width: auto;
     display: inline-block;
@@ -544,43 +341,6 @@ body {
     animation-delay: 0.4s;
 }
 
-/* Mensajes del usuario y bot */
-.message {
-    display: flex;
-    gap: 15px;
-    margin-bottom: 20px;
-    animation: fadeInUp 0.3s ease-out;
-}
-
-.message.user {
-    flex-direction: row-reverse;
-}
-
-.message.user .message-content {
-    background: var(--primary-color);
-    color: white;
-    margin-left: auto;
-}
-
-.user-avatar {
-    width: 40px;
-    height: 40px;
-    background: var(--accent-color);
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-weight: bold;
-    flex-shrink: 0;
-}
-
-.message-time {
-    font-size: 12px;
-    color: var(--text-secondary);
-    margin-top: 5px;
-}
-
 /* Estilos para formularios en el chat */
 .email-form {
     background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
@@ -613,16 +373,11 @@ body {
     font-weight: 500;
     margin-bottom: 8px;
     font-size: 14px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
 }
 
-.form-field label::before {
-    content: '•';
-    color: var(--primary-color);
-    font-size: 20px;
-    line-height: 1;
+.form-field label::after {
+    content: ' *';
+    color: var(--error-color);
 }
 
 .form-field input,
@@ -705,10 +460,6 @@ body {
     box-shadow: 0 6px 16px rgba(42, 93, 132, 0.4);
 }
 
-.btn-primary:active {
-    transform: translateY(0);
-}
-
 .btn-secondary {
     background: white;
     color: var(--text-primary);
@@ -721,7 +472,7 @@ body {
     color: var(--primary-color);
 }
 
-/* Vista previa del correu electrònic */
+/* Vista previa del email */
 .email-preview {
     background: linear-gradient(135deg, #e8f4fd 0%, #d1e7dd 100%);
     border: 2px solid #0dcaf0;
@@ -735,9 +486,6 @@ body {
     color: #0c63e4;
     font-weight: 600;
     margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 8px;
 }
 
 .email-info {
@@ -751,7 +499,7 @@ body {
     font-weight: 500;
 }
 
-/* Animacions */
+/* Animaciones */
 @keyframes fadeInUp {
     from {
         opacity: 0;
@@ -819,94 +567,9 @@ body {
     }
 }
 
-/* Animació per la vista previa */
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
-}
-
-/* Millora per al datalist */
-input[list]::-webkit-calendar-picker-indicator {
-    display: none !important;
-}
-
-/* Estil per l'input quan té una opció vàlida */
-input[name="professor"]:valid {
-    border-color: var(--success-color);
-    background: linear-gradient(to right, #ffffff 0%, #f8fff8 100%);
-}
-
-/* Indicador visual per professors vàlids */
-.form-field input[name="professor"] + .validation-icon {
-    position: absolute;
-    right: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: var(--success-color);
-    font-size: 16px;
-}
-
-/* Placeholder personalizado */
-.form-field input::placeholder,
-.form-field textarea::placeholder {
-    color: #adb5bd;
-    font-style: italic;
-}
-
-/* Focus mejorado */
-.form-field:focus-within label {
-    color: var(--primary-color);
-    font-weight: 600;
-}
-
-/* Indicador de campo obligatorio */
-.form-field label:has(+ :required)::after {
-    content: ' *';
-    color: var(--error-color);
-}
-
-/* Para navegadores que no soportan :has */
-.form-field label.required::after {
-    content: ' *';
-    color: var(--error-color);
-}
-
-/* Responsive */
-@media (max-width: 768px) {
-    .chat-section {
-        height: 100vh;
-        max-height: 100vh;
-        border-radius: 0;
-    }
-    
-    .form-card {
-        padding: 30px 20px;
-    }
-    
-    .welcome-section h1 {
-        font-size: 24px;
-    }
-    
-    .message-content {
-        max-width: 85%;
-    }
-    
-    .chat-header {
-        padding: 15px;
-    }
-    
-    .header-info h3 {
-        font-size: 16px;
-    }
-    
-    .email-preview {
-        padding: 12px;
-    }
-    
-    .email-info {
-        font-size: 13px;
-        padding: 8px 10px;
-    }
 }
 
 /* Scrollbar personalizada */
@@ -927,50 +590,23 @@ input[name="professor"]:valid {
     background: #555;
 }
 
-/* RTL support para formularios */
-[dir="rtl"] .form-field label::before {
-    margin-right: 0;
-    margin-left: 6px;
-}
-
-[dir="rtl"] .form-field select {
-    background-position: left 16px center;
-    padding-right: 16px;
-    padding-left: 40px;
-}
-/* Añadir al final del archivo styles.css existente */
-
-/* ===== MEJORAS PARA MÓVIL ===== */
-
-/* Prevenir zoom en inputs en iOS */
-input[type="text"], 
-input[type="email"], 
-input[type="date"], 
-textarea, 
-select {
-    font-size: 16px !important;
-}
-
-/* Mejorar responsive para móvil */
+/* Responsive para móviles */
 @media (max-width: 768px) {
-    /* Eliminar padding del body para aprovechar toda la pantalla */
     body {
         margin: 0;
         padding: 0;
-        overflow: hidden; /* Prevenir scroll del body */
-    }
-    
-    /* Contenedor principal ocupa toda la pantalla disponible */
-    .app-container {
-        padding: 0;
-        height: 100dvh; /* Usar viewport dinámico que excluye barras del navegador */
-        min-height: 100dvh;
         overflow: hidden;
     }
     
-    /* Chat section ocupa toda la pantalla disponible sin bordes */
+    .app-container {
+        padding: 0;
+        height: 100vh;
+        min-height: 100vh;
+        overflow: hidden;
+    }
+    
     .chat-section {
-        height: calc(var(--vh, 1vh) * 100) !important; /* Usar viewport dinámico */
+        height: calc(var(--vh, 1vh) * 100) !important;
         max-height: calc(var(--vh, 1vh) * 100) !important;
         border-radius: 0 !important;
         box-shadow: none;
@@ -978,7 +614,6 @@ select {
         max-width: 100%;
     }
     
-    /* Header más compacto en móvil */
     .chat-header {
         padding: 12px 16px;
         min-height: 60px;
@@ -1000,24 +635,19 @@ select {
         font-size: 12px;
     }
     
-    /* Área de mensajes ocupa el espacio restante */
     .chat-messages {
         flex: 1;
-        height: calc(100svh - 60px - 140px); /* Usar viewport dinámico - 60px header + 140px input aprox */
+        height: calc(100vh - 60px - 140px);
         overflow-y: auto;
         -webkit-overflow-scrolling: touch;
         padding: 12px;
     }
     
-    /* Input container más compacto */
     .chat-input-container {
         padding: 12px;
         flex-shrink: 0;
-        background: white;
-        border-top: 1px solid var(--border-color);
     }
     
-    /* Botones de acción rápida más pequeños */
     .quick-actions {
         gap: 8px;
         margin-bottom: 8px;
@@ -1036,10 +666,9 @@ select {
         height: 14px;
     }
     
-    /* Input de mensaje más compacto */
     #message-input {
         padding: 10px 14px;
-        font-size: 16px;
+        font-size: 16px !important;
         max-height: 80px;
         border-radius: 20px;
     }
@@ -1049,7 +678,6 @@ select {
         height: 40px;
     }
     
-    /* Mensajes más compactos en móvil */
     .message {
         gap: 8px;
         margin-bottom: 12px;
@@ -1075,13 +703,10 @@ select {
         margin-top: 2px;
     }
     
-    /* FORMULARIOS MEJORADOS PARA MÓVIL */
     .email-form {
         padding: 16px;
         margin-top: 8px;
         border-radius: 12px;
-        max-width: 100%;
-        box-sizing: border-box;
     }
     
     .email-form h4 {
@@ -1103,24 +728,20 @@ select {
     .form-field textarea,
     .form-field select {
         padding: 10px 12px;
-        font-size: 16px !important; /* Importante para prevenir zoom en iOS */
+        font-size: 16px !important;
         border-radius: 8px;
         border: 2px solid #e1e8ed;
-        width: 100%;
-        box-sizing: border-box;
     }
     
     .form-field textarea {
         min-height: 80px;
-        resize: vertical;
     }
     
-    /* Botones del formulario más grandes para móvil */
     .form-actions {
         display: flex;
         gap: 8px;
         margin-top: 16px;
-        flex-direction: column; /* Stack verticalmente en móvil */
+        flex-direction: column;
     }
     
     .btn-primary,
@@ -1130,10 +751,8 @@ select {
         border-radius: 8px;
         flex: none;
         width: 100%;
-        box-sizing: border-box;
     }
     
-    /* Vista previa del email mejorada */
     .email-preview {
         padding: 12px;
         border-radius: 8px;
@@ -1146,49 +765,6 @@ select {
         border-radius: 6px;
     }
     
-    /* Selector de idiomas más compacto */
-    .language-selector {
-        gap: 4px;
-        padding: 3px;
-    }
-    
-    .lang-btn {
-        width: 28px;
-        height: 20px;
-        border-radius: 3px;
-    }
-    
-    /* Avatar de usuario más pequeño */
-    .user-avatar-btn {
-        width: 32px;
-        height: 32px;
-    }
-    
-    /* Dropdown de usuario mejorado */
-    .user-dropdown {
-        min-width: 180px;
-        right: 8px;
-        margin-top: 5px;
-    }
-    
-    .user-info-dropdown {
-        padding: 12px;
-    }
-    
-    .user-info-dropdown .user-name {
-        font-size: 14px;
-    }
-    
-    .user-info-dropdown .user-email {
-        font-size: 12px;
-    }
-    
-    .logout-btn {
-        padding: 10px 12px;
-        font-size: 13px;
-    }
-    
-    /* Mensaje de bienvenida más compacto */
     .welcome-message .message-content {
         font-size: 14px;
         padding: 12px 16px;
@@ -1204,7 +780,6 @@ select {
         margin-bottom: 3px;
     }
     
-    /* Indicador de escritura más pequeño */
     .typing-indicator {
         font-size: 12px;
         margin-top: 6px;
@@ -1215,48 +790,31 @@ select {
         height: 6px;
     }
     
-    /* Menu de usuario mejorado */
-    .user-menu {
-        gap: 8px;
+    /* Ocultar scrollbar en móvil */
+    .chat-messages::-webkit-scrollbar {
+        width: 0px;
+        background: transparent;
     }
     
-    /* Mejoras adicionales para formularios en pantallas muy pequeñas */
-    @media (max-width: 480px) {
-        .chat-messages {
-            padding: 8px;
-        }
-        
-        .email-form {
-            padding: 12px;
-        }
-        
-        .form-field input,
-        .form-field textarea,
-        .form-field select {
-            padding: 12px;
-            font-size: 16px !important;
-        }
-        
-        .message-content {
-            max-width: 90%;
-            font-size: 14px;
-        }
-        
-        .quick-actions {
-            flex-direction: column;
-        }
-        
-        .quick-action-btn {
-            width: 100%;
-            justify-content: center;
-        }
+    .chat-messages {
+        scrollbar-width: none;
+        -ms-overflow-style: none;
     }
+}
+
+/* Prevenir zoom en inputs en iOS */
+input[type="text"], 
+input[type="email"], 
+input[type="date"], 
+textarea, 
+select {
+    font-size: 16px !important;
 }
 
 /* Mejoras para landscape en móvil */
 @media (max-width: 768px) and (orientation: landscape) {
     .chat-messages {
-        height: calc(100svh - 50px - 120px); /* Ajustar para landscape con viewport dinámico */
+        height: calc(100vh - 50px - 120px);
     }
     
     .chat-header {
@@ -1273,49 +831,8 @@ select {
     }
 }
 
-/* Prevenir problemas con el viewport en iOS y navegadores móviles */
-@supports (-webkit-touch-callout: none) {
-    .chat-section {
-        height: 100svh; /* Usar viewport dinámico en iOS */
-    }
-    
-    .chat-messages {
-        height: calc(100svh - 60px - 140px); /* Viewport dinámico en iOS */
-    }
-}
-
-/* Fallback para navegadores que no soportan svh */
-@supports not (height: 100svh) {
-    .app-container {
-        height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-        min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
-    }
-    
-    .chat-section {
-        height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
-        max-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom)) !important;
-    }
-    
-    .chat-messages {
-        height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom) - 60px - 140px);
-    }
-}
-
 /* Mejorar el scroll en dispositivos táctiles */
 .chat-messages {
     scroll-behavior: smooth;
     overscroll-behavior: contain;
-}
-
-/* Ocultar scrollbar en móvil pero mantener funcionalidad */
-@media (max-width: 768px) {
-    .chat-messages::-webkit-scrollbar {
-        width: 0px;
-        background: transparent;
-    }
-    
-    .chat-messages {
-        scrollbar-width: none;
-        -ms-overflow-style: none;
-    }
 }
