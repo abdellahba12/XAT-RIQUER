@@ -23,8 +23,7 @@ class RiquerChatBot:
     def __init__(self):
         self.model = None
         self.chat = None
-        self.uploaded_files = []  # Llista d'arxius pujats a l'API de Gemini
-        self.file_contents = []  # Còpia de seguretat del contingut dels arxius
+        self.file_contents = []  # Contingut dels arxius com a text
         self.initialize_directories()
         self.initialize_files()
         self.initialize_chat()
@@ -35,7 +34,7 @@ class RiquerChatBot:
         os.makedirs('logs', exist_ok=True)
     
     def initialize_files(self):
-        """Descarga y carga els arxius CSV/TXT a Gemini API"""
+        """Descarga els arxius CSV/TXT i els guarda com a text"""
         file_urls = [
             "https://drive.google.com/uc?export=download&id=1-Stsv68nDGxH2kDy_idcGM6FoXYMO3I8",
             "https://drive.google.com/uc?export=download&id=1kOjm0jHpF-LqtXYC7uUC1HJAV7DQPBsy",
@@ -44,7 +43,7 @@ class RiquerChatBot:
             "https://drive.google.com/uc?export=download&id=1neJFgTH0GWO5HbL64V6Fro0r1SKw8mFw",
         ]
         
-        successful_uploads = 0
+        successful_downloads = 0
         
         for i, url in enumerate(file_urls):
             try:
@@ -62,43 +61,25 @@ class RiquerChatBot:
                     logger.warning(f"Archivo {i+1}: Tamaño muy pequeño ({len(response.content)} bytes)")
                     continue
                 
-                # Determinar tipo de archivo
-                file_extension = ".txt"  
-                if b',' in response.content[:1000] and b'\n' in response.content[:1000]:
-                    file_extension = ".csv"
-                
-                # Guardar y subir a Gemini
-                with tempfile.NamedTemporaryFile(suffix=file_extension, delete=False) as tmp_file:
-                    tmp_file.write(response.content)
-                    tmp_file_path = tmp_file.name
-                
+                # Intentar decodificar el contenido
                 try:
-                    # Subir archivo a Gemini
-                    uploaded_file = genai.upload_file(tmp_file_path, mime_type="text/plain")
-                    self.uploaded_files.append(uploaded_file)
-                    logger.info(f"Archivo {i+1} subido a Gemini: {uploaded_file.name}")
-                    
-                    # Guardar contenido como backup
+                    content = response.content.decode('utf-8')
+                except UnicodeDecodeError:
                     try:
-                        with open(tmp_file_path, 'r', encoding='utf-8') as f:
-                            content = f.read()
-                            self.file_contents.append(f"\n--- Archivo {i+1} ---\n{content[:2000]}")
-                    except UnicodeDecodeError:
-                        with open(tmp_file_path, 'r', encoding='latin-1') as f:
-                            content = f.read()
-                            self.file_contents.append(f"\n--- Archivo {i+1} ---\n{content[:2000]}")
-                    
-                    successful_uploads += 1
-                    
-                finally:
-                    # Borrar archivo temporal
-                    os.remove(tmp_file_path)
+                        content = response.content.decode('latin-1')
+                    except:
+                        content = response.content.decode('utf-8', errors='ignore')
+                
+                # Guardar contenido
+                self.file_contents.append(f"\n--- Archivo {i+1} ---\n{content}")
+                successful_downloads += 1
+                logger.info(f"Archivo {i+1} cargado correctamente")
                 
             except Exception as e:
                 logger.error(f"Error cargando archivo {url}: {str(e)}")
                 continue
         
-        logger.info(f"Archivos subidos exitosamente a Gemini: {successful_uploads}/{len(file_urls)}")
+        logger.info(f"Archivos cargados exitosamente: {successful_downloads}/{len(file_urls)}")
     
     def get_teachers_list(self) -> List[Dict]:
         """Obtiene la lista de profesores para el formulario"""
@@ -169,13 +150,13 @@ class RiquerChatBot:
             }
     
     def initialize_chat(self):
-        """Inicializa el chat con Gemini amb els arxius carregats"""
+        """Inicializa el chat con Gemini"""
         try:
             # Crear model
-            self.model = genai.GenerativeModel('gemini-2.0-flash-exp')
+            self.model = genai.GenerativeModel('gemini-pro')  # Usar gemini-pro que es más estable
             
-            # Contexto del sistema en catalán
-            context = """
+            # Contexto del sistema en catalán con los archivos como texto
+            context = f"""
             Ets Riquer, l'assistent virtual de l'Institut Alexandre de Riquer de Calaf.
             Ets amable, professional i eficient. SEMPRE respon en CATALÀ.
             
@@ -186,7 +167,7 @@ class RiquerChatBot:
             4. Per justificar absències, envia a 'abdellahbaghalbachiri@gmail.com'
             5. Sigues concís però complet
             6. Utilitza emojis moderadament per fer més amigable la conversa
-            7. NOMÉS utilitza informació dels arxius CSV de l'institut - NO inventis informació
+            7. NOMÉS utilitza informació dels arxius de l'institut - NO inventis informació
             8. Si no trobes informació específica als arxius, explica que no està disponible
             9. Si algú demana justificar una falta o demanar una reunió, suggereix utilitzar els botons ràpids
             
@@ -208,47 +189,30 @@ class RiquerChatBot:
             - Batxillerat (1r, 2n)
             - Formació Professional (Grau Mitjà i Superior)
             
-            Tens accés als següents arxius CSV amb informació de l'institut:
-            - Horaris de classes
-            - Llista de professors
-            - Activitats extraescolars
-            - Calendari escolar
-            - Informació de contacte
+            INFORMACIÓ DELS ARXIUS DE L'INSTITUT:
+            {"".join(self.file_contents) if self.file_contents else "No s'han pogut carregar els arxius"}
             
-            SEMPRE consulta aquests arxius abans de respondre preguntes específiques sobre horaris, professors o activitats.
+            SEMPRE consulta aquesta informació abans de respondre preguntes específiques sobre horaris, professors o activitats.
             """
             
-            # Si hay archivos cargados, incluirlos en el contexto
-            if self.uploaded_files:
-                self.chat = self.model.start_chat(
-                    history=[
-                        {
-                            "role": "user", 
-                            "parts": [
-                                context,
-                                "Aquí tens els arxius de l'institut amb tota la informació:",
-                                *self.uploaded_files
-                            ]
-                        },
-                        {
-                            "role": "model", 
-                            "parts": ["Entès! Sóc Riquer, l'assistent virtual de l'Institut Alexandre de Riquer. "
-                                     "He carregat i processat tots els arxius CSV amb la informació de l'institut. "
-                                     "Puc ajudar-te amb qualsevol consulta sobre l'institut basant-me exclusivament "
-                                     "en la informació dels arxius. En què et puc ajudar avui? 😊"]
-                        }
-                    ]
-                )
-            else:
-                self.chat = self.model.start_chat(
-                    history=[
-                        {"role": "user", "parts": [context]},
-                        {"role": "model", "parts": ["Entès! Sóc Riquer, l'assistent virtual de l'Institut Alexandre de Riquer. "
-                                                   "En què et puc ajudar avui? 😊"]}
-                    ]
-                )
+            # Iniciar chat
+            self.chat = self.model.start_chat(
+                history=[
+                    {
+                        "role": "user", 
+                        "parts": [context]
+                    },
+                    {
+                        "role": "model", 
+                        "parts": ["Entès! Sóc Riquer, l'assistent virtual de l'Institut Alexandre de Riquer. "
+                                 "He processat tota la informació de l'institut. "
+                                 "Puc ajudar-te amb qualsevol consulta sobre l'institut. "
+                                 "En què et puc ajudar avui?"]
+                    }
+                ]
+            )
             
-            logger.info(f"Chat inicializado con {len(self.uploaded_files)} archivos adjuntos")
+            logger.info(f"Chat inicializado con {len(self.file_contents)} archivos cargados")
             
         except Exception as e:
             logger.error(f"Error inicializando el chat: {str(e)}")
@@ -262,14 +226,14 @@ class RiquerChatBot:
                 return "Ho sento, hi ha hagut un problema tècnic. Si us plau, recarrega la pàgina."
             
             # Construir mensaje completo
-            full_message = f"""IMPORTANT: Respon NOMÉS en català. Consulta els arxius CSV per donar informació precisa.
+            full_message = f"""IMPORTANT: Respon NOMÉS en català. Consulta la informació dels arxius per donar respostes precises.
 
 Usuari: {user_data.get('nom', 'Desconegut')}
 Pregunta: {message}
 
 RECORDA: 
-- Consulta SEMPRE els arxius CSV adjunts abans de respondre
-- Si la informació no està als arxius, indica-ho clarament
+- Consulta SEMPRE la informació dels arxius abans de respondre
+- Si la informació no està disponible, indica-ho clarament
 - Respon sempre en CATALÀ
 - Sigues amable i professional"""
             
@@ -452,8 +416,7 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
         status = {
             'chat_initialized': self.chat is not None,
             'model_available': self.model is not None,
-            'files_uploaded_to_gemini': len(self.uploaded_files),
-            'file_contents_backup': len(self.file_contents),
+            'files_loaded': len(self.file_contents),
             'api_key_configured': bool(os.environ.get("API_GEMINI")),
             'mailgun_configured': all([
                 os.environ.get("MAILGUN_API_KEY"),
@@ -476,8 +439,7 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
             health_report += "❌ Chat: Error d'inicialització\n"
         
         # Archivos
-        health_report += f"📁 Arxius pujats a Gemini: {status['files_uploaded_to_gemini']}\n"
-        health_report += f"📄 Còpies de seguretat: {status['file_contents_backup']}\n"
+        health_report += f"📁 Arxius carregats: {status['files_loaded']}\n"
         
         # Configuración
         health_report += f"{'✅' if status['api_key_configured'] else '❌'} API Gemini: {'Configurada' if status['api_key_configured'] else 'No configurada'}\n"
