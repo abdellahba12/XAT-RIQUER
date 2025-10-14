@@ -153,12 +153,13 @@ class RiquerChatBot:
         """Inicializa el chat con Gemini"""
         try:
             # Crear model
-            self.model = genai.GenerativeModel('gemini-pro')  # Usar gemini-pro que es más estable
+            self.model = genai.GenerativeModel('gemini-2.0-flash')  # Usar gemini-pro que es más estable
             
             # Contexto del sistema en catalán con los archivos como texto
             context = f"""
             Ets Riquer, l'assistent virtual de l'Institut Alexandre de Riquer de Calaf.
             Ets amable, professional i eficient. SEMPRE respon en CATALÀ.
+            Dona respostes curtres sempre que sigui possible
             
             REGLES IMPORTANTS:
             1. Sempre respon en CATALÀ
