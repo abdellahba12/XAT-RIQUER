@@ -2,7 +2,9 @@
 <html lang="ca">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>Xat Institut Alexandre de Riquer</title>
     <link rel="icon" href="/static/images/riquer_logo.png" type="image/png">
     <link rel="stylesheet" href="/static/css/styles.css">
@@ -93,11 +95,22 @@
                 transform: translateY(0);
             }
         }
+        
+        /* Mobile specific overrides */
+        @media (max-width: 768px) {
+            .user-avatar-btn {
+                width: 32px;
+                height: 32px;
+            }
+            .user-menu {
+                gap: 8px;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="app-container">
-        <div id="chat-container" class="chat-section" style="display: flex;">
+        <div id="chat-container" class="chat-section">
             <div class="chat-header">
                 <img src="/static/images/riquer_logo.png" alt="Institut Alexandre de Riquer" class="chat-logo" onerror="this.style.display='none'">
                 <div class="header-info">
@@ -213,25 +226,104 @@
                 document.getElementById('userDropdown').classList.remove('show');
             }
         });
-        
-        // Ajustar altura real del viewport para móviles
-        function ajustarAlturaReal() {
-            const vh = window.innerHeight * 0.01;
-            document.documentElement.style.setProperty('--vh', `${vh}px`);
+    </script>
+    
+    <script src="/static/js/app.js"></script>
+    
+    <!-- MILLORES PER A MÒBIL -->
+    <script>
+    // Detectar quan s'obre el teclat
+    let viewportHeight = window.innerHeight;
+    window.addEventListener('resize', () => {
+        if (window.innerHeight < viewportHeight * 0.75) {
+            document.body.classList.add('keyboard-open');
+        } else {
+            document.body.classList.remove('keyboard-open');
         }
+    });
+
+    // Millorar scroll al enviar missatge
+    function scrollToBottom() {
+        const messages = document.getElementById('chat-messages');
+        setTimeout(() => {
+            messages.scrollTop = messages.scrollHeight;
+        }, 100);
+    }
+
+    // Prevenir el pull-to-refresh en Chrome
+    document.addEventListener('touchmove', function(e) {
+        if (e.target.closest('.chat-messages')) {
+            e.stopPropagation();
+        }
+    }, { passive: false });
+
+    // Fix per a Safari iOS - viewport height
+    const setVH = () => {
+        let vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
+    };
+    
+    setVH();
+    window.addEventListener('resize', setVH);
+    window.addEventListener('orientationchange', setVH);
+    
+    // Ajustar altura real del viewport per a mòbils
+    function ajustarAlturaReal() {
+        const vh = window.innerHeight * 0.01;
+        document.documentElement.style.setProperty('--vh', `${vh}px`);
         
-        window.addEventListener('resize', ajustarAlturaReal);
-        window.addEventListener('orientationchange', ajustarAlturaReal);
-        document.addEventListener('DOMContentLoaded', ajustarAlturaReal);
-        
-        // Mejorar scroll en móvil cuando se abre el teclado
-        const input = document.getElementById('message-input');
-        input.addEventListener('focus', () => {
+        // Forçar recalcul en iOS
+        if (window.innerWidth < 768) {
+            const chatSection = document.querySelector('.chat-section');
+            if (chatSection) {
+                chatSection.style.height = `${window.innerHeight}px`;
+            }
+        }
+    }
+    
+    // Executar en carregar i en events de canvi
+    window.addEventListener('load', ajustarAlturaReal);
+    window.addEventListener('resize', ajustarAlturaReal);
+    window.addEventListener('orientationchange', () => {
+        setTimeout(ajustarAlturaReal, 100);
+    });
+    
+    // Millorar el focus del input en mòbil
+    const messageInput = document.getElementById('message-input');
+    if (messageInput) {
+        messageInput.addEventListener('focus', () => {
             setTimeout(() => {
-                input.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                messageInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }, 300);
         });
+        
+        // Prevenir zoom en iOS
+        messageInput.addEventListener('touchstart', (e) => {
+            e.target.style.fontSize = '16px';
+        });
+    }
+    
+    // Gestió del scroll suau
+    let isScrolling = false;
+    const chatMessages = document.getElementById('chat-messages');
+    
+    if (chatMessages) {
+        chatMessages.addEventListener('scroll', () => {
+            isScrolling = true;
+            setTimeout(() => {
+                isScrolling = false;
+            }, 150);
+        });
+    }
+    
+    // Funció per afegir missatges amb scroll automàtic
+    window.addEventListener('message-added', () => {
+        if (!isScrolling && chatMessages) {
+            setTimeout(() => {
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }, 100);
+        }
+    });
     </script>
-    <script src="/static/js/app.js"></script>
 </body>
 </html>
