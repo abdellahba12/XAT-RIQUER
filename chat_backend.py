@@ -84,16 +84,10 @@ class RiquerChatBot:
     def get_teachers_list(self) -> List[Dict]:
         """Obtiene la lista de profesores para el formulario"""
         teachers = [
-            {'name': 'Roger Codina', 'email': 'roger.codina@inscalaf.cat'},
-            {'name': 'Abdellah Baghal', 'email': 'abdellah.baghal@inscalaf.cat'},
-            {'name': 'Anna Puig', 'email': 'anna.puig@inscalaf.cat'},
-            {'name': 'Carles Rovira', 'email': 'carles.rovira@inscalaf.cat'},
-            {'name': 'Maria González', 'email': 'maria.gonzalez@inscalaf.cat'},
-            {'name': 'Josep Martí', 'email': 'josep.marti@inscalaf.cat'},
-            {'name': 'Laura Fernández', 'email': 'laura.fernandez@inscalaf.cat'},
-            {'name': 'David López', 'email': 'david.lopez@inscalaf.cat'},
-            {'name': 'Montserrat Vila', 'email': 'montserrat.vila@inscalaf.cat'},
-            {'name': 'Jordi Pujol', 'email': 'jordi.pujol@inscalaf.cat'}
+            {'name': 'Jordi Pipó', 'email': 'jordi.pipo@inscalaf.cat'},
+            {'name': 'Anna Bresolí', 'email': 'anna.bresoli@inscalaf.cat'},
+            {'name': 'Gerard Corominas', 'email': 'gerard.corominas@inscalaf.cat'},
+            {'name': 'Natàlia Muñoz', 'email': 'natalia.munoz@inscalaf.cat'}
         ]
         
         return teachers
