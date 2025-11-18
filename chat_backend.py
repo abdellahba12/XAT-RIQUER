@@ -226,7 +226,7 @@ class RiquerChatBot:
             }
             
             self.model = genai.GenerativeModel(
-                'gemini-2.0-flash-exp',  # Usar modelo experimental más rápido
+                'gemini-2.0-flash',  # Usar modelo experimental más rápido
                 generation_config=generation_config
             )
             
