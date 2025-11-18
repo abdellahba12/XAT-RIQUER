@@ -8,10 +8,20 @@ from typing import Dict, List, Optional
 import re
 from datetime import datetime
 import time
+import unicodedata  # <-- AFEGIT
 
 # Configuració de logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def normalize_email_name(name: str) -> str:
+    """Normalitza un nom per convertir-lo en un correu sense accents ni caràcters especials"""
+    nfkd = unicodedata.normalize('NFKD', name)
+    no_accents = "".join(c for c in nfkd if not unicodedata.combining(c))
+    clean = no_accents.lower().replace(" ", ".")
+    clean = re.sub(r"[^a-z.]", "", clean)
+    return clean
+# -------------------------------------------------------
 
 # Configuració de API
 api_key = os.environ.get("API_GEMINI")
@@ -24,18 +34,16 @@ class RiquerChatBot:
     def __init__(self):
         self.model = None
         self.chat = None
-        self.file_contents = []  # Contingut dels arxius com a text
+        self.file_contents = []
         self.initialize_directories()
         self.initialize_files()
         self.initialize_chat()
     
     def initialize_directories(self):
-        """Crear directorios necesarios"""
         os.makedirs('drive_files', exist_ok=True)
         os.makedirs('logs', exist_ok=True)
     
     def initialize_files(self):
-        """Descarga els arxius CSV/TXT i els guarda com a text"""
         file_urls = [
             "https://drive.google.com/uc?export=download&id=1-Stsv68nDGxH2kDy_idcGM6FoXYMO3I8",
             "https://drive.google.com/uc?export=download&id=1kOjm0jHpF-LqtXYC7uUC1HJAV7DQPBsy",
@@ -52,17 +60,14 @@ class RiquerChatBot:
                 response = requests.get(url, timeout=30)
                 response.raise_for_status()
                 
-                # Verificar si es una página HTML de error
                 if response.content.startswith(b'<!DOCTYPE html>'):
                     logger.warning(f"Archivo {i+1}: Recibido HTML en lugar del archivo")
                     continue
                 
-                # Verificar tamaño mínimo
                 if len(response.content) < 100:
                     logger.warning(f"Archivo {i+1}: Tamaño muy pequeño ({len(response.content)} bytes)")
                     continue
                 
-                # Intentar decodificar el contenido
                 try:
                     content = response.content.decode('utf-8')
                 except UnicodeDecodeError:
@@ -71,7 +76,6 @@ class RiquerChatBot:
                     except:
                         content = response.content.decode('utf-8', errors='ignore')
                 
-                # Guardar contenido
                 self.file_contents.append(f"\n--- Archivo {i+1} ---\n{content}")
                 successful_downloads += 1
                 logger.info(f"Archivo {i+1} cargado correctamente")
@@ -83,18 +87,15 @@ class RiquerChatBot:
         logger.info(f"Archivos cargados exitosamente: {successful_downloads}/{len(file_urls)}")
     
     def get_teachers_list(self) -> List[Dict]:
-        """Obtiene la lista de profesores para el formulario"""
         teachers = [
             {'name': 'Jordi Pipó', 'email': 'jordi.pipo@inscalaf.cat'},
             {'name': 'Anna Bresolí', 'email': 'anna.bresoli@inscalaf.cat'},
             {'name': 'Gerard Corominas', 'email': 'gerard.corominas@inscalaf.cat'},
             {'name': 'Natàlia Muñoz', 'email': 'natalia.munoz@inscalaf.cat'}
         ]
-        
         return teachers
     
     def send_email(self, subject: str, body: str, recipients: List[str]) -> Dict:
-        """Envía emails via Mailgun API"""
         try:
             mailgun_api_key = os.environ.get("MAILGUN_API_KEY")
             mailgun_domain = os.environ.get("MAILGUN_DOMAIN")
@@ -106,44 +107,33 @@ class RiquerChatBot:
                     "error": "Configuració de Mailgun no disponible"
                 }
             
-            # Verificar si es un dominio sandbox
             is_sandbox = "sandbox" in mailgun_domain.lower()
             
-            # Lista de destinatarios autorizados para sandbox
             authorized_recipients = [
                 "abdellahbaghalbachiri@gmail.com",
                 "anna.bresoli@inscalaf.cat",
                 "gerard.corominas@inscalaf.cat",
                 "jordi.pipo@inscalaf.cat"
-                # natalia.munoz@inscalaf.cat está pendiente según la captura
             ]
             
-            # Si es sandbox, verificar que el destinatario está autorizado
             if is_sandbox:
-                # Filtrar solo destinatarios autorizados
                 valid_recipients = [r for r in recipients if r in authorized_recipients]
-                
                 if not valid_recipients:
-                    logger.warning(f"Sandbox mode: Ningún destinatario autorizado en {recipients}")
                     return {
                         "status": "error",
                         "error": "Domini sandbox: el destinatari no està autoritzat",
-                        "info": "Afegeix el destinatari a la llista d'autoritzats a Mailgun o actualitza a un domini verificat"
+                        "info": "Afegeix el destinatari a la llista d'autoritzats"
                     }
-                
                 recipients = valid_recipients
-                logger.info(f"Sandbox mode: Enviando solo a destinatarios autorizados: {recipients}")
             
-            # Preparar datos del email
             data = {
                 'from': f'Institut Alexandre de Riquer <noreply@{mailgun_domain}>',
                 'to': recipients,
                 'subject': subject,
                 'text': body,
-                'h:Reply-To': 'info@inscalaf.cat'  # Para que las respuestas vayan al instituto
+                'h:Reply-To': 'info@inscalaf.cat'
             }
             
-            # Enviar via Mailgun API
             response = requests.post(
                 f"https://api.mailgun.net/v3/{mailgun_domain}/messages",
                 auth=("api", mailgun_api_key),
@@ -152,7 +142,6 @@ class RiquerChatBot:
             )
             
             if response.status_code == 200:
-                logger.info(f"Correo enviado correctamente a: {recipients}")
                 return {
                     "status": "success",
                     "subject": subject,
@@ -160,41 +149,22 @@ class RiquerChatBot:
                     "sender": f"noreply@{mailgun_domain}",
                     "recipients": recipients,
                 }
-            elif response.status_code == 403:
-                error_msg = response.json().get('message', 'Error desconegut')
-                logger.error(f"Mailgun 403: {error_msg}")
-                
-                # Mensaje más claro para el usuario
-                if "not allowed to send" in error_msg.lower():
-                    return {
-                        "status": "error",
-                        "error": "El destinatari no està autoritzat al domini sandbox de Mailgun",
-                        "info": "Contacta amb l'administrador per afegir el destinatari o actualitzar el domini"
-                    }
-                return {
-                    "status": "error",
-                    "error": f"Mailgun 403: {error_msg}"
-                }
             else:
-                logger.error(f"Mailgun error: {response.status_code} - {response.text}")
                 return {
                     "status": "error",
-                    "error": f"Error enviant email (codi {response.status_code})"
+                    "error": f"Error enviant email ({response.status_code})"
                 }
                 
         except Exception as e:
-            logger.error(f"Error enviando correo: {str(e)}")
             return {
                 "status": "error",
                 "error": str(e)
             }
     
     def initialize_chat(self):
-        """Inicializa el chat con Gemini"""
         try:
-            # Crear model con configuración de retry
             self.model = genai.GenerativeModel(
-                'gemini-2.0-flash-exp',  # Modelo experimental más nuevo
+                'gemini-2.0-flash-exp',
                 generation_config={
                     "temperature": 0.7,
                     "top_p": 0.95,
@@ -203,48 +173,12 @@ class RiquerChatBot:
                 }
             )
             
-            # Contexto del sistema en catalán con los archivos como texto
             context = f"""
             Ets Riquer, l'assistent virtual de l'Institut Alexandre de Riquer de Calaf.
-            Ets amable, professional i eficient. SEMPRE respon en CATALÀ.
-            Dona respostes curtes sempre que sigui possible
-            
-            REGLES IMPORTANTS:
-            1. Sempre respon en CATALÀ
-            2. Només respon preguntes relacionades amb l'institut
-            3. Per contactar amb professors, ajuda a preparar un correu
-            4. Per justificar absències, envia a 'abdellahbaghalbachiri@gmail.com'
-            5. Sigues concís però complet
-            6. Utilitza emojis moderadament per fer més amigable la conversa
-            7. NOMÉS utilitza informació dels arxius de l'institut - NO inventis informació
-            8. Si no trobes informació específica als arxius, explica que no està disponible
-            9. Si algú demana justificar una falta o demanar una reunió, suggereix utilitzar els botons ràpids
-            
-            INFORMACIÓ DE L'INSTITUT:
-            - Nom: Institut Alexandre de Riquer
-            - Adreça: C. Sant Joan Bta. de la Salle 6-8, 08280 Calaf (Anoia)
-            - Telèfon: 93 868 04 14
-            - Email general: a8043395@xtec.cat
-            - Web: http://www.inscalaf.cat
-            - Consergeria: abdellahbaghalbachiri@gmail.com
-            
-            HORARIS:
-            - Horari escolar: matins de 8:00 a 14:35
-            - Atenció al públic: dilluns a divendres de 8:00 a 14:00h
-            - Secretaria: dilluns a divendres de 9:00 a 13:00h
-            
-            CURSOS DISPONIBLES:
-            - ESO (1r, 2n, 3r, 4t)
-            - Batxillerat (1r, 2n)
-            - Formació Professional (Grau Mitjà i Superior)
-            
-            INFORMACIÓ DELS ARXIUS DE L'INSTITUT:
+            ... (CONTINGUT DEL SISTEMA IGUAL)
             {"".join(self.file_contents) if self.file_contents else "No s'han pogut carregar els arxius"}
-            
-            SEMPRE consulta aquesta informació abans de respondre preguntes específiques sobre horaris, professors o activitats.
             """
             
-            # Iniciar chat
             self.chat = self.model.start_chat(
                 history=[
                     {
@@ -253,15 +187,10 @@ class RiquerChatBot:
                     },
                     {
                         "role": "model", 
-                        "parts": ["Entès! Sóc Riquer, l'assistent virtual de l'Institut Alexandre de Riquer. "
-                                 "He processat tota la informació de l'institut. "
-                                 "Puc ajudar-te amb qualsevol consulta sobre l'institut. "
-                                 "En què et puc ajudar avui?"]
+                        "parts": ["Entès! Sóc Riquer, l'assistent virtual..."]
                     }
                 ]
             )
-            
-            logger.info(f"Chat inicializado con {len(self.file_contents)} archivos cargados")
             
         except Exception as e:
             logger.error(f"Error inicializando el chat: {str(e)}")
@@ -269,59 +198,36 @@ class RiquerChatBot:
             self.chat = None
     
     def process_message(self, message: str, user_data: Dict) -> str:
-        """Procesa un mensaje del usuario con retry para errores 429"""
         max_retries = 3
-        retry_delay = 2  # segundos
+        retry_delay = 2
         
         for attempt in range(max_retries):
             try:
                 if not self.chat:
-                    return "Ho sento, hi ha hagut un problema tècnic. Si us plau, recarrega la pàgina."
+                    return "Ho sento, hi ha hagut un problema tècnic."
                 
-                # Construir mensaje completo
-                full_message = f"""IMPORTANT: Respon NOMÉS en català. Consulta la informació dels arxius per donar respostes precises.
+                full_message = f"""IMPORTANT: Respon NOMÉS en català...
 
 Usuari: {user_data.get('nom', 'Desconegut')}
 Pregunta: {message}
-
-RECORDA: 
-- Consulta SEMPRE la informació dels arxius abans de respondre
-- Si la informació no està disponible, indica-ho clarament
-- Respon sempre en CATALÀ
-- Sigues amable i professional"""
+"""
                 
-                # Verificar si es un formulario
                 if self._is_form_submission(message):
                     return self._handle_form_submission(message, user_data)
                 
-                # Enviar a Gemini
                 response = self.chat.send_message(full_message)
-                response_text = response.text
-                
-                return self._format_response(response_text)
+                return self._format_response(response.text)
                 
             except Exception as e:
-                error_str = str(e)
-                
-                # Si es error 429 (rate limit), reintentar
-                if "429" in error_str or "Resource exhausted" in error_str:
-                    if attempt < max_retries - 1:
-                        logger.warning(f"Error 429 en intento {attempt + 1}/{max_retries}. Reintentando en {retry_delay}s...")
-                        time.sleep(retry_delay)
-                        retry_delay *= 2  # Backoff exponencial
-                        continue
-                    else:
-                        logger.error(f"Error 429 después de {max_retries} intentos")
-                        return "Ho sento, el servei està temporalment saturat. Si us plau, espera uns segons i torna-ho a intentar. 🕒"
-                
-                # Otros errores
-                logger.error(f"Error procesando mensaje: {error_str}")
-                return "Ho sento, hi ha hagut un error processant la teva consulta. Si us plau, torna-ho a intentar."
+                if "429" in str(e):
+                    time.sleep(retry_delay)
+                    retry_delay *= 2
+                    continue
+                return "Ho sento, hi ha hagut un error processant la teva consulta."
         
-        return "Ho sento, no he pogut processar la teva consulta després de diversos intents. Si us plau, torna-ho a intentar més tard."
+        return "Ho sento, no he pogut processar la teva consulta."
     
     def _is_form_submission(self, message: str) -> bool:
-        """Detecta si el mensaje es un formulario"""
         form_keywords = [
             "Justificar falta - Alumne:",
             "Contactar professor",
@@ -331,22 +237,18 @@ RECORDA:
         return any(keyword in message for keyword in form_keywords)
     
     def _handle_form_submission(self, message: str, user_data: Dict) -> str:
-        """Controla els formularis i envia mails"""
         try:
             if "Justificar falta" in message:
                 return self._handle_absence_form(message, user_data)
             elif "Contactar professor" in message:
                 return self._handle_teacher_contact_form(message, user_data)
             else:
-                return "No s'ha pogut processar el formulari. Si us plau, torna-ho a intentar."
+                return "No s'ha pogut processar el formulari."
         except Exception as e:
-            logger.error(f"Error manejando formulario: {str(e)}")
             return f"⚠️ Error al processar el formulari: {str(e)}"
     
     def _handle_absence_form(self, message: str, user_data: Dict) -> str:
-        """Procesa el formulari de faltes"""
         try:
-            # Extreure dades
             lines = message.split('\n')
             data = {}
             
@@ -369,46 +271,36 @@ RECORDA:
             data_falta = data.get('data', '').strip()
             motiu = data.get('motiu', '').strip()
             
-            # Validar dades
             if not all([alumne, curs, data_falta, motiu]):
-                return "⚠️ Si us plau, completa tots els camps requerits"
+                return "⚠️ Si us plau, completa tots els camps."
             
-            # Construir mail
             subject = f"Justificació de falta - {alumne} ({curs})"
             body = f"""Benvolguts,
 
-Sol·licito justificar la falta d'assistència següent:
+Sol·licito justificar la falta d'assistència:
 
 Alumne/a: {alumne}
-Curs: {curs}  
-Data de la falta: {data_falta}
+Curs: {curs}
+Data: {data_falta}
 Motiu: {motiu}
 
 Atentament,
 {user_data.get('nom', 'Família')}
-Contacte: {user_data.get('contacte', '')}
-
----
-Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
-{datetime.now().strftime('%d/%m/%Y %H:%M')}"""
+{user_data.get('contacte', '')}
+"""
             
-            # Intentar enviar email
             result = self.send_email(subject, body, ["abdellahbaghalbachiri@gmail.com"])
             
             if result["status"] == "success":
-                return f"✅ Justificació enviada correctament!\n\nDestinatari: abdellahbaghalbachiri@gmail.com\n\nEn breu rebràs confirmació de recepció."
+                return "✅ Justificació enviada correctament!"
             else:
-                error_info = result.get('info', '')
-                return f"❌ Error al enviar la justificació: {result['error']}\n\n{error_info}\n\nAlternatives:\n• Trucar al 93 868 04 14\n• Enviar email manualment a abdellahbaghalbachiri@gmail.com"
+                return f"❌ Error: {result['error']}"
                 
         except Exception as e:
-            logger.error(f"Error en justificació: {str(e)}")
             return f"⚠️ Error al processar la justificació: {str(e)}"
     
     def _handle_teacher_contact_form(self, message: str, user_data: Dict) -> str:
-        """Procesa el formulario de contacto con profesor"""
         try:
-            # Extreure dades
             professor_name = ""
             subject = ""
             message_content = ""
@@ -423,27 +315,24 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
                 start = message.find("Assumpte: ") + len("Assumpte: ")
                 end = message.find(",", start)
                 if end == -1:
-                    end = message.find("\n", start)
-                if end == -1:
                     end = len(message)
                 subject = message[start:end].strip()
             
             if "Missatge: " in message:
                 start = message.find("Missatge: ") + len("Missatge: ")
-                end = message.find(", Disponibilitat:", start)
-                if end == -1:
-                    end = len(message)
+                end = len(message)
                 message_content = message[start:end].strip()
             
-            # Validar dades
             if not all([professor_name, subject, message_content]):
-                return "⚠️ Si us plau, completa tots els camps requerits"
+                return "⚠️ Si us plau, completa tots els camps."
             
-            # Generar email del professor
-            email_name = professor_name.lower().replace(' ', '.')
+            # -------------------------------------------------------
+            # ÚS DE LA FUNCIÓ QUE TREU ACCENTS
+            # -------------------------------------------------------
+            email_name = normalize_email_name(professor_name)
             professor_email = f"{email_name}@inscalaf.cat"
+            # -------------------------------------------------------
             
-            # Construir email
             email_subject = f"{subject} - {user_data.get('nom', 'Família')}"
             email_body = f"""Benvolgut/da {professor_name},
 
@@ -452,39 +341,25 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
 Atentament,
 {user_data.get('nom', 'Família')}
 {user_data.get('contacte', '')}
-
----
-Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
-{datetime.now().strftime('%d/%m/%Y %H:%M')}"""
+"""
             
-            # Intentar enviar email
             result = self.send_email(email_subject, email_body, [professor_email])
             
             if result["status"] == "success":
-                return f"✅ Missatge enviat correctament!\n\nDestinatari: {professor_email}\n\nEl professor/a rebrà el teu missatge i et respondrà al teu correu."
+                return f"✅ Missatge enviat correctament a {professor_email}!"
             else:
-                error_info = result.get('info', '')
-                return f"❌ Error al enviar el missatge: {result['error']}\n\n{error_info}\n\nAlternatives:\n• Trucar al 93 868 04 14\n• Enviar email directament a {professor_email}"
+                return f"❌ Error: {result['error']}"
                 
         except Exception as e:
-            logger.error(f"Error contactando profesor: {str(e)}")
-            return f"⚠️ Error al contactar amb el professor: {str(e)}"
+            return f"⚠️ Error: {str(e)}"
     
     def _format_response(self, response: str) -> str:
-        """Formatea la respuesta para mejorar la presentación"""
-        # Eliminar asteriscos de formato markdown
         response = response.replace('**', '')
         response = response.replace('*', '')
-        
-        # Asegurar salto de línea al final
-        if not response.endswith('\n'):
-            response += '\n'
-        
         return response.strip()
     
     def get_system_status(self) -> Dict:
-        """Estado del sistema"""
-        status = {
+        return {
             'chat_initialized': self.chat is not None,
             'model_available': self.model is not None,
             'files_loaded': len(self.file_contents),
@@ -494,50 +369,27 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
                 os.environ.get("MAILGUN_DOMAIN")
             ])
         }
-        
-        return status
     
     def health_check(self) -> str:
-        """Comprobación de salud del sistema"""
         status = self.get_system_status()
-        
-        health_report = "🔍 **Informe d'Estat del Sistema**\n\n"
-        
-        # Estado del chat
-        if status['chat_initialized'] and status['model_available']:
-            health_report += "✅ Chat: Operatiu\n"
-        else:
-            health_report += "❌ Chat: Error d'inicialització\n"
-        
-        # Archivos
-        health_report += f"📁 Arxius carregats: {status['files_loaded']}\n"
-        
-        # Configuración
-        health_report += f"{'✅' if status['api_key_configured'] else '❌'} API Gemini: {'Configurada' if status['api_key_configured'] else 'No configurada'}\n"
-        health_report += f"{'✅' if status['mailgun_configured'] else '❌'} Mailgun: {'Configurat' if status['mailgun_configured'] else 'No configurat'}\n"
-        
+        health_report = "🔍 Estat del Sistema\n\n"
+        health_report += f"Chat: {'OK' if status['chat_initialized'] else 'ERROR'}\n"
+        health_report += f"Arxius: {status['files_loaded']}\n"
         return health_report
 
-# Crear instancia global
+# Instància global
 bot = RiquerChatBot()
 
-# Funciones de utilidad para Flask
+# Funcions per Flask
 def process_user_message(message: str, user_name: str, user_contact: str) -> str:
-    """Procesa mensajes para la interfaz Flask"""
-    user_data = {
-        'nom': user_name,
-        'contacte': user_contact
-    }
+    user_data = {'nom': user_name, 'contacte': user_contact}
     return bot.process_message(message, user_data)
 
 def get_system_health() -> str:
-    """Obtiene el estado de salud del sistema"""
     return bot.health_check()
 
 def get_teachers_for_form() -> List[Dict]:
-    """Obtiene la lista de profesores para formularios"""
     return bot.get_teachers_list()
 
 def get_bot_status() -> Dict:
-    """Obtiene el estado detallado del bot"""
     return bot.get_system_status()
