@@ -7,6 +7,8 @@ import logging
 from typing import Dict, List, Optional
 import re
 from datetime import datetime
+import time
+from functools import wraps
 
 # Configuració de logging
 logging.basicConfig(level=logging.INFO)
@@ -19,11 +21,54 @@ if not api_key:
 
 genai.configure(api_key=api_key)
 
+# Decorador per gestionar límits de peticions amb retry
+def retry_with_exponential_backoff(
+    max_retries=3,
+    initial_delay=2,
+    exponential_base=2,
+    max_delay=32
+):
+    """Decorador que reintenta amb backoff exponencial si hi ha error 429"""
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            delay = initial_delay
+            
+            for attempt in range(max_retries + 1):
+                try:
+                    return func(*args, **kwargs)
+                except Exception as e:
+                    error_str = str(e).lower()
+                    
+                    # Detectar error 429 o límit de quota
+                    if any(keyword in error_str for keyword in ["429", "resource exhausted", "quota", "rate limit"]):
+                        if attempt < max_retries:
+                            wait_time = delay + (attempt * 0.5)  # Afegir jitter
+                            logger.warning(f"⚠️ Límit de peticions assolit. Reintent {attempt + 1}/{max_retries} després de {wait_time:.1f}s")
+                            time.sleep(wait_time)
+                            delay = min(delay * exponential_base, max_delay)
+                            continue
+                        else:
+                            logger.error(f"❌ Màxim de reintents assolit després de {max_retries} intents")
+                            # Retornar missatge amigable
+                            return "Ho sento molt, el sistema està temporalment saturat degut a l'alta demanda. Si us plau, espera uns segons i torna-ho a intentar. 🙏"
+                    else:
+                        # Si no és error 429, llançar immediatament
+                        logger.error(f"Error inesperat: {e}")
+                        raise
+            
+            return None
+        return wrapper
+    return decorator
+
+
 class RiquerChatBot:
     def __init__(self):
         self.model = None
         self.chat = None
         self.file_contents = []  # Contingut dels arxius com a text
+        self.request_count = 0  # Comptador de peticions
+        self.last_request_time = None
         self.initialize_directories()
         self.initialize_files()
         self.initialize_chat()
@@ -146,14 +191,32 @@ class RiquerChatBot:
     def initialize_chat(self):
         """Inicializa el chat con Gemini"""
         try:
-            # Crear model
-            self.model = genai.GenerativeModel('gemini-2.0-flash')  # Usar gemini-pro que es más estable
+            # Crear model amb configuració de seguretat relaxada
+            generation_config = {
+                "temperature": 0.7,
+                "top_p": 0.95,
+                "top_k": 40,
+                "max_output_tokens": 1024,
+            }
+            
+            safety_settings = [
+                {"category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE"},
+                {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
+            ]
+            
+            self.model = genai.GenerativeModel(
+                'gemini-2.0-flash',
+                generation_config=generation_config,
+                safety_settings=safety_settings
+            )
             
             # Contexto del sistema en catalán con los archivos como texto
             context = f"""
             Ets Riquer, l'assistent virtual de l'Institut Alexandre de Riquer de Calaf.
             Ets amable, professional i eficient. SEMPRE respon en CATALÀ.
-            Dona respostes curtres sempre que sigui possible
+            Dona respostes curtes sempre que sigui possible
             
             REGLES IMPORTANTS:
             1. Sempre respon en CATALÀ
@@ -207,12 +270,40 @@ class RiquerChatBot:
                 ]
             )
             
-            logger.info(f"Chat inicializado con {len(self.file_contents)} archivos cargados")
+            logger.info(f"✅ Chat inicializado con {len(self.file_contents)} archivos cargados")
             
         except Exception as e:
-            logger.error(f"Error inicializando el chat: {str(e)}")
+            logger.error(f"❌ Error inicializando el chat: {str(e)}")
             self.model = None
             self.chat = None
+    
+    def _rate_limit_check(self):
+        """Comprova si s'està fent servir massa ràpid l'API"""
+        current_time = time.time()
+        
+        if self.last_request_time is not None:
+            time_since_last = current_time - self.last_request_time
+            
+            # Si han passat menys de 1.5 segons, esperar
+            if time_since_last < 1.5:
+                wait_time = 1.5 - time_since_last
+                logger.info(f"⏳ Esperant {wait_time:.2f}s per evitar límit de peticions...")
+                time.sleep(wait_time)
+        
+        self.last_request_time = current_time
+        self.request_count += 1
+    
+    @retry_with_exponential_backoff(max_retries=3, initial_delay=2)
+    def _send_to_gemini(self, message: str) -> str:
+        """Envia missatge a Gemini amb gestió d'errors"""
+        if not self.chat:
+            raise Exception("Chat no inicialitzat")
+        
+        # Control de rate limit
+        self._rate_limit_check()
+        
+        response = self.chat.send_message(message)
+        return response.text
     
     def process_message(self, message: str, user_data: Dict) -> str:
         """Procesa un mensaje del usuario"""
@@ -236,15 +327,20 @@ RECORDA:
             if self._is_form_submission(message):
                 return self._handle_form_submission(message, user_data)
             
-            # Enviar a Gemini
-            response = self.chat.send_message(full_message)
-            response_text = response.text
+            # Enviar a Gemini amb retry automàtic
+            response_text = self._send_to_gemini(full_message)
             
             return self._format_response(response_text)
             
         except Exception as e:
-            logger.error(f"Error procesando mensaje: {str(e)}")
-            return "Ho sento, hi ha hagut un error processant la teva consulta. Si us plau, torna-ho a intentar."
+            error_msg = str(e)
+            logger.error(f"❌ Error procesando mensaje: {error_msg}")
+            
+            # Retornar missatge específic si és error de quota
+            if "temporalment saturat" in error_msg.lower():
+                return error_msg
+            else:
+                return "Ho sento, hi ha hagut un error processant la teva consulta. Si us plau, torna-ho a intentar en uns segons. 🙏"
     
     def _is_form_submission(self, message: str) -> bool:
         """Detecta si el mensaje es un formulario"""
@@ -416,7 +512,8 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
             'mailgun_configured': all([
                 os.environ.get("MAILGUN_API_KEY"),
                 os.environ.get("MAILGUN_DOMAIN")
-            ])
+            ]),
+            'total_requests': self.request_count
         }
         
         return status
@@ -439,6 +536,7 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
         # Configuración
         health_report += f"{'✅' if status['api_key_configured'] else '❌'} API Gemini: {'Configurada' if status['api_key_configured'] else 'No configurada'}\n"
         health_report += f"{'✅' if status['mailgun_configured'] else '❌'} Mailgun: {'Configurat' if status['mailgun_configured'] else 'No configurat'}\n"
+        health_report += f"📊 Total peticions: {status['total_requests']}\n"
         
         return health_report
 
