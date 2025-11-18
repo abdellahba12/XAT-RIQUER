@@ -9,6 +9,23 @@ import re
 from datetime import datetime
 import time
 from functools import wraps
+import unicodedata
+
+
+def normalize_email_name(name: str) -> str:
+    """Normalitza un nom per convertir-lo en un correu sense accents ni caràcters especials"""
+    # Treu accents
+    nfkd = unicodedata.normalize('NFKD', name)
+    no_accents = "".join(c for c in nfkd if not unicodedata.combining(c))
+    
+    # Minúscules i espais → punts
+    clean = no_accents.lower().replace(" ", ".")
+    
+    # Permet només lletres i punts
+    clean = re.sub(r"[^a-z.]", "", clean)
+    
+    return clean
+
 
 # Configuració de logging
 logging.basicConfig(level=logging.INFO)
@@ -428,8 +445,9 @@ Enviat des del sistema de l'Institut Alexandre de Riquer
                 return "⚠️ Si us plau, completa tots els camps requerits"
             
             # Generar email del professor
-            email_name = professor_name.lower().replace(' ', '.')
+            email_name = normalize_email_name(professor_name)
             professor_email = f"{email_name}@inscalaf.cat"
+
             
             # Construir email
             email_subject = f"{subject} - {user_data.get('nom', 'Família')}"
