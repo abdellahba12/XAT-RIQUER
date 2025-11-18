@@ -11,39 +11,39 @@ import time
 from functools import wraps
 import unicodedata
 
+
 # Configuració de logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-def normalize_email_name(name: str) -> str:
+# Configuració de API
+api_key = os.environ.get("API_GEMINI")
+if not api_key:
+    logger.warning("No se encontró API_GEMINI en las variables de entorno")
+
+genai.configure(api_key=api_key)
+
+def normalize_name_to_email(name: str) -> str:
     """
-    Converteix un nom a format d'email sense accents ni caràcters especials.
+    Normalitza un nom de professor a format d'email sense accents
     
     Exemples:
-    - "Jordi Pipó" -> "jordi.pipo"
-    - "José María" -> "jose.maria"
-    - "Montserrat Núñez" -> "montserrat.nunez"
+        'Jordi Pipó' -> 'jordi.pipo'
+        'Anna Bresolí' -> 'anna.bresoli'
+        'Natàlia Muñoz' -> 'natalia.munoz'
     """
     # Convertir a minúscules
     name = name.lower()
     
-    # Eliminar accents i diacrítics
-    # NFD = Normalization Form Decomposed (separa caràcters base dels accents)
+    # Normalitzar Unicode i eliminar diacrítics (accents)
     name = unicodedata.normalize('NFD', name)
-    # Eliminar els caràcters de combinació (accents)
     name = ''.join(char for char in name if unicodedata.category(char) != 'Mn')
     
-    # Reemplaçar espais per punts
+    # Substituir espais per punts
     name = name.replace(' ', '.')
     
-    # Eliminar qualsevol caràcter que no sigui lletra, número o punt
-    name = re.sub(r'[^a-z0-9.]', '', name)
-    
-    # Eliminar punts duplicats
-    name = re.sub(r'\.+', '.', name)
-    
-    # Eliminar punts al principi i final
-    name = name.strip('.')
+    # Eliminar tots els caràcters que no siguin alfanumèrics o punts
+    name = ''.join(char for char in name if char.isalnum() or char == '.')
     
     return name
 
@@ -489,15 +489,18 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
                     end = len(message)
                 message_content = message[start:end].strip()
             
-            # Validar dades
-            if not all([professor_name, subject, message_content]):
-                return "⚠️ Si us plau, completa tots els camps requerits"
+            # Buscar email del professor a la llista
+            teacher = next((t for t in self.get_teachers_list() if t['name'] == professor_name), None)
             
-            # Generar email del professor sense accents ni caràcters especials
-            email_name = normalize_email_name(professor_name)
-            professor_email = f"{email_name}@inscalaf.cat"
+            if teacher:
+                # Usar email de la llista (ja està sense accents)
+                professor_email = teacher['email']
+            else:
+                # Generar email automàticament (eliminar accents)
+                email_name = normalize_name_to_email(professor_name)
+                professor_email = f"{email_name}@inscalaf.cat"
             
-            logger.info(f"📧 Generant email: {professor_name} -> {professor_email}")
+            logger.info(f"📧 Email generat: {professor_name} -> {professor_email}")
             
             # Construir email
             email_subject = f"{subject} - {user_data.get('nom', 'Família')}"
