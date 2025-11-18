@@ -7,6 +7,7 @@ import logging
 from typing import Dict, List, Optional
 import re
 from datetime import datetime
+import time
 
 # Configuració de logging
 logging.basicConfig(level=logging.INFO)
@@ -105,11 +106,41 @@ class RiquerChatBot:
                     "error": "Configuració de Mailgun no disponible"
                 }
             
+            # Verificar si es un dominio sandbox
+            is_sandbox = "sandbox" in mailgun_domain.lower()
+            
+            # Lista de destinatarios autorizados para sandbox
+            authorized_recipients = [
+                "abdellahbaghalbachiri@gmail.com",
+                "anna.bresoli@inscalaf.cat",
+                "gerard.corominas@inscalaf.cat",
+                "jordi.pipo@inscalaf.cat"
+                # natalia.munoz@inscalaf.cat está pendiente según la captura
+            ]
+            
+            # Si es sandbox, verificar que el destinatario está autorizado
+            if is_sandbox:
+                # Filtrar solo destinatarios autorizados
+                valid_recipients = [r for r in recipients if r in authorized_recipients]
+                
+                if not valid_recipients:
+                    logger.warning(f"Sandbox mode: Ningún destinatario autorizado en {recipients}")
+                    return {
+                        "status": "error",
+                        "error": "Domini sandbox: el destinatari no està autoritzat",
+                        "info": "Afegeix el destinatari a la llista d'autoritzats a Mailgun o actualitza a un domini verificat"
+                    }
+                
+                recipients = valid_recipients
+                logger.info(f"Sandbox mode: Enviando solo a destinatarios autorizados: {recipients}")
+            
+            # Preparar datos del email
             data = {
-                'from': 'Institut Alexandre de Riquer <riquer@inscalaf.cat>',
+                'from': f'Institut Alexandre de Riquer <noreply@{mailgun_domain}>',
                 'to': recipients,
                 'subject': subject,
-                'text': body
+                'text': body,
+                'h:Reply-To': 'info@inscalaf.cat'  # Para que las respuestas vayan al instituto
             }
             
             # Enviar via Mailgun API
@@ -126,14 +157,29 @@ class RiquerChatBot:
                     "status": "success",
                     "subject": subject,
                     "body": body,
-                    "sender": "riquer@inscalaf.cat",
+                    "sender": f"noreply@{mailgun_domain}",
                     "recipients": recipients,
+                }
+            elif response.status_code == 403:
+                error_msg = response.json().get('message', 'Error desconegut')
+                logger.error(f"Mailgun 403: {error_msg}")
+                
+                # Mensaje más claro para el usuario
+                if "not allowed to send" in error_msg.lower():
+                    return {
+                        "status": "error",
+                        "error": "El destinatari no està autoritzat al domini sandbox de Mailgun",
+                        "info": "Contacta amb l'administrador per afegir el destinatari o actualitzar el domini"
+                    }
+                return {
+                    "status": "error",
+                    "error": f"Mailgun 403: {error_msg}"
                 }
             else:
                 logger.error(f"Mailgun error: {response.status_code} - {response.text}")
                 return {
                     "status": "error",
-                    "error": f"Error enviant email: {response.status_code}"
+                    "error": f"Error enviant email (codi {response.status_code})"
                 }
                 
         except Exception as e:
@@ -146,14 +192,22 @@ class RiquerChatBot:
     def initialize_chat(self):
         """Inicializa el chat con Gemini"""
         try:
-            # Crear model
-            self.model = genai.GenerativeModel('gemini-2.0-flash')  # Usar gemini-pro que es más estable
+            # Crear model con configuración de retry
+            self.model = genai.GenerativeModel(
+                'gemini-2.0-flash-exp',  # Modelo experimental más nuevo
+                generation_config={
+                    "temperature": 0.7,
+                    "top_p": 0.95,
+                    "top_k": 40,
+                    "max_output_tokens": 2048,
+                }
+            )
             
             # Contexto del sistema en catalán con los archivos como texto
             context = f"""
             Ets Riquer, l'assistent virtual de l'Institut Alexandre de Riquer de Calaf.
             Ets amable, professional i eficient. SEMPRE respon en CATALÀ.
-            Dona respostes curtres sempre que sigui possible
+            Dona respostes curtes sempre que sigui possible
             
             REGLES IMPORTANTS:
             1. Sempre respon en CATALÀ
@@ -215,13 +269,17 @@ class RiquerChatBot:
             self.chat = None
     
     def process_message(self, message: str, user_data: Dict) -> str:
-        """Procesa un mensaje del usuario"""
-        try:
-            if not self.chat:
-                return "Ho sento, hi ha hagut un problema tècnic. Si us plau, recarrega la pàgina."
-            
-            # Construir mensaje completo
-            full_message = f"""IMPORTANT: Respon NOMÉS en català. Consulta la informació dels arxius per donar respostes precises.
+        """Procesa un mensaje del usuario con retry para errores 429"""
+        max_retries = 3
+        retry_delay = 2  # segundos
+        
+        for attempt in range(max_retries):
+            try:
+                if not self.chat:
+                    return "Ho sento, hi ha hagut un problema tècnic. Si us plau, recarrega la pàgina."
+                
+                # Construir mensaje completo
+                full_message = f"""IMPORTANT: Respon NOMÉS en català. Consulta la informació dels arxius per donar respostes precises.
 
 Usuari: {user_data.get('nom', 'Desconegut')}
 Pregunta: {message}
@@ -231,20 +289,36 @@ RECORDA:
 - Si la informació no està disponible, indica-ho clarament
 - Respon sempre en CATALÀ
 - Sigues amable i professional"""
-            
-            # Verificar si es un formulario
-            if self._is_form_submission(message):
-                return self._handle_form_submission(message, user_data)
-            
-            # Enviar a Gemini
-            response = self.chat.send_message(full_message)
-            response_text = response.text
-            
-            return self._format_response(response_text)
-            
-        except Exception as e:
-            logger.error(f"Error procesando mensaje: {str(e)}")
-            return "Ho sento, hi ha hagut un error processant la teva consulta. Si us plau, torna-ho a intentar."
+                
+                # Verificar si es un formulario
+                if self._is_form_submission(message):
+                    return self._handle_form_submission(message, user_data)
+                
+                # Enviar a Gemini
+                response = self.chat.send_message(full_message)
+                response_text = response.text
+                
+                return self._format_response(response_text)
+                
+            except Exception as e:
+                error_str = str(e)
+                
+                # Si es error 429 (rate limit), reintentar
+                if "429" in error_str or "Resource exhausted" in error_str:
+                    if attempt < max_retries - 1:
+                        logger.warning(f"Error 429 en intento {attempt + 1}/{max_retries}. Reintentando en {retry_delay}s...")
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Backoff exponencial
+                        continue
+                    else:
+                        logger.error(f"Error 429 después de {max_retries} intentos")
+                        return "Ho sento, el servei està temporalment saturat. Si us plau, espera uns segons i torna-ho a intentar. 🕒"
+                
+                # Otros errores
+                logger.error(f"Error procesando mensaje: {error_str}")
+                return "Ho sento, hi ha hagut un error processant la teva consulta. Si us plau, torna-ho a intentar."
+        
+        return "Ho sento, no he pogut processar la teva consulta després de diversos intents. Si us plau, torna-ho a intentar més tard."
     
     def _is_form_submission(self, message: str) -> bool:
         """Detecta si el mensaje es un formulario"""
@@ -324,7 +398,8 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
             if result["status"] == "success":
                 return f"✅ Justificació enviada correctament!\n\nDestinatari: abdellahbaghalbachiri@gmail.com\n\nEn breu rebràs confirmació de recepció."
             else:
-                return f"❌ Error al enviar la justificació.\n\nAlternatives:\n• Trucar al 93 868 04 14\n• Enviar email manualment a abdellahbaghalbachiri@gmail.com"
+                error_info = result.get('info', '')
+                return f"❌ Error al enviar la justificació: {result['error']}\n\n{error_info}\n\nAlternatives:\n• Trucar al 93 868 04 14\n• Enviar email manualment a abdellahbaghalbachiri@gmail.com"
                 
         except Exception as e:
             logger.error(f"Error en justificació: {str(e)}")
@@ -388,7 +463,8 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
             if result["status"] == "success":
                 return f"✅ Missatge enviat correctament!\n\nDestinatari: {professor_email}\n\nEl professor/a rebrà el teu missatge i et respondrà al teu correu."
             else:
-                return f"❌ Error al enviar el missatge.\n\nAlternatives:\n• Trucar al 93 868 04 14\n• Enviar email directament a {professor_email}"
+                error_info = result.get('info', '')
+                return f"❌ Error al enviar el missatge: {result['error']}\n\n{error_info}\n\nAlternatives:\n• Trucar al 93 868 04 14\n• Enviar email directament a {professor_email}"
                 
         except Exception as e:
             logger.error(f"Error contactando profesor: {str(e)}")
