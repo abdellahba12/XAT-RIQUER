@@ -9,10 +9,43 @@ import re
 from datetime import datetime
 import time
 from functools import wraps
+import unicodedata
 
 # Configuració de logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+def normalize_email_name(name: str) -> str:
+    """
+    Converteix un nom a format d'email sense accents ni caràcters especials.
+    
+    Exemples:
+    - "Jordi Pipó" -> "jordi.pipo"
+    - "José María" -> "jose.maria"
+    - "Montserrat Núñez" -> "montserrat.nunez"
+    """
+    # Convertir a minúscules
+    name = name.lower()
+    
+    # Eliminar accents i diacrítics
+    # NFD = Normalization Form Decomposed (separa caràcters base dels accents)
+    name = unicodedata.normalize('NFD', name)
+    # Eliminar els caràcters de combinació (accents)
+    name = ''.join(char for char in name if unicodedata.category(char) != 'Mn')
+    
+    # Reemplaçar espais per punts
+    name = name.replace(' ', '.')
+    
+    # Eliminar qualsevol caràcter que no sigui lletra, número o punt
+    name = re.sub(r'[^a-z0-9.]', '', name)
+    
+    # Eliminar punts duplicats
+    name = re.sub(r'\.+', '.', name)
+    
+    # Eliminar punts al principi i final
+    name = name.strip('.')
+    
+    return name
 
 # Configuració de API
 api_key = os.environ.get("API_GEMINI")
@@ -207,7 +240,7 @@ class RiquerChatBot:
             ]
             
             self.model = genai.GenerativeModel(
-                'gemini-1.5-flash',
+                'gemini-2.0-flash',
                 generation_config=generation_config,
                 safety_settings=safety_settings
             )
@@ -460,9 +493,11 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
             if not all([professor_name, subject, message_content]):
                 return "⚠️ Si us plau, completa tots els camps requerits"
             
-            # Generar email del professor
-            email_name = professor_name.lower().replace(' ', '.')
+            # Generar email del professor sense accents ni caràcters especials
+            email_name = normalize_email_name(professor_name)
             professor_email = f"{email_name}@inscalaf.cat"
+            
+            logger.info(f"📧 Generant email: {professor_name} -> {professor_email}")
             
             # Construir email
             email_subject = f"{subject} - {user_data.get('nom', 'Família')}"
