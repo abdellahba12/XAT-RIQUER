@@ -101,8 +101,6 @@ class RiquerChatBot:
         self.chat = None
         self.file_contents = []  # Contingut dels arxius com a text
         self.request_count = 0  # Comptador de peticions
-        self.last_request_time = None
-        self.min_request_interval = 3.0  # AUGMENTAT A 3 SEGONS per evitar rate limits
         self.initialize_directories()
         self.initialize_files()
         self.initialize_chat()
@@ -322,30 +320,11 @@ Respon SEMPRE en CATALÀ. Sigues útil i directe."""
             self.model = None
             self.chat = None
     
-    def _rate_limit_check(self):
-        """Comprova si s'està fent servir massa ràpid l'API"""
-        current_time = time.time()
-        
-        if self.last_request_time is not None:
-            time_since_last = current_time - self.last_request_time
-            
-            # Si han passat menys de 1.5 segons, esperar
-            if time_since_last < 1.5:
-                wait_time = 1.5 - time_since_last
-                logger.info(f"⏳ Esperant {wait_time:.2f}s per evitar límit de peticions...")
-                time.sleep(wait_time)
-        
-        self.last_request_time = current_time
-        self.request_count += 1
-    
     @retry_with_exponential_backoff(max_retries=1, initial_delay=3)
     def _send_to_gemini(self, message: str) -> str:
         """Envia missatge a Gemini amb gestió d'errors"""
         if not self.chat:
             raise Exception("Chat no inicialitzat")
-        
-        # Control de rate limit
-        self._rate_limit_check()
         
         response = self.chat.send_message(message)
         return response.text
