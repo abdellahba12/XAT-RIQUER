@@ -10,7 +10,7 @@ from datetime import datetime
 import time
 from functools import wraps
 import unicodedata
-
+import unicodedata
 
 # Configuració de logging
 logging.basicConfig(level=logging.INFO)
@@ -110,6 +110,23 @@ class RiquerChatBot:
         """Crear directorios necesarios"""
         os.makedirs('drive_files', exist_ok=True)
         os.makedirs('logs', exist_ok=True)
+    
+    def _get_compact_files_info(self) -> str:
+        """Retorna info compacta dels arxius per estalviar tokens"""
+        if not self.file_contents:
+            return "⚠️ Arxius no disponibles"
+        
+        # Només agafar una mostra dels arxius (estalvia MOLTS tokens)
+        compact = ""
+        max_chars_per_file = 800  # Limitar caràcters per arxiu
+        
+        for i, content in enumerate(self.file_contents[:3]):  # Només 3 primers arxius
+            compact += f"\n--- Arxiu {i+1} (resum) ---\n"
+            compact += content[:max_chars_per_file]
+            if len(content) > max_chars_per_file:
+                compact += "... [continua]"
+        
+        return compact
     
     def initialize_files(self):
         """Descarga els arxius CSV/TXT i els guarda com a text"""
@@ -240,51 +257,48 @@ class RiquerChatBot:
             ]
             
             self.model = genai.GenerativeModel(
-                'gemini-2.0-flash-lite',
+                'gemini-2.0-flash-lite',  # 30 RPM, 1M TPM - molt millor quota
                 generation_config=generation_config,
                 safety_settings=safety_settings
             )
             
-            # Contexto del sistema en catalán con los archivos como texto
-            context = f"""
-            Ets Riquer, l'assistent virtual de l'Institut Alexandre de Riquer de Calaf.
-            Ets amable, professional i eficient. SEMPRE respon en CATALÀ.
-            Dona respostes curtes sempre que sigui possible
-            
-            REGLES IMPORTANTS:
-            1. Sempre respon en CATALÀ
-            2. Només respon preguntes relacionades amb l'institut
-            3. Per contactar amb professors, ajuda a preparar un correu
-            4. Per justificar absències, envia a 'abdellahbaghalbachiri@gmail.com'
-            5. Sigues concís però complet
-            6. Utilitza emojis moderadament per fer més amigable la conversa
-            7. NOMÉS utilitza informació dels arxius de l'institut - NO inventis informació
-            8. Si no trobes informació específica als arxius, explica que no està disponible
-            9. Si algú demana justificar una falta o demanar una reunió, suggereix utilitzar els botons ràpids
-            
-            INFORMACIÓ DE L'INSTITUT:
-            - Nom: Institut Alexandre de Riquer
-            - Adreça: C. Sant Joan Bta. de la Salle 6-8, 08280 Calaf (Anoia)
-            - Telèfon: 93 868 04 14
-            - Email general: a8043395@xtec.cat
-            - Web: http://www.inscalaf.cat
-            - Consergeria: abdellahbaghalbachiri@gmail.com
-            
-            HORARIS:
-            - Horari escolar: matins de 8:00 a 14:35
-            - Atenció al públic: dilluns a divendres de 8:00 a 14:00h
-            - Secretaria: dilluns a divendres de 9:00 a 13:00h
-            
-            CURSOS DISPONIBLES:
-            - ESO (1r, 2n, 3r, 4t)
-            - Batxillerat (1r, 2n)
-            - Formació Professional (Grau Mitjà i Superior)
-            
-            INFORMACIÓ DELS ARXIUS DE L'INSTITUT:
-            {"".join(self.file_contents) if self.file_contents else "No s'han pogut carregar els arxius"}
-            
-            SEMPRE consulta aquesta informació abans de respondre preguntes específiques sobre horaris, professors o activitats.
-            """
+            # Context optimitzat (estalvia tokens)
+            context = f"""Ets Riquer, assistent virtual de l'Institut Alexandre de Riquer de Calaf.
+
+PERSONALITAT: Amable, proper, eficient. SEMPRE en CATALÀ.
+
+FUNCIONS:
+• Informar sobre l'institut (horaris, cursos, contactes)
+• Ajudar a contactar professors → suggereix botó "Sol·licitar reunió"
+• Justificar faltes → suggereix botó "Justificar falta"  
+• Resoldre dubtes acadèmics i administratius
+
+CONTACTE:
+📍 C. Sant Joan Bta. de la Salle 6-8, 08280 Calaf
+📞 93 868 04 14
+📧 a8043395@xtec.cat
+📧 abdellahbaghalbachiri@gmail.com (consergeria)
+🌐 inscalaf.cat
+
+HORARIS:
+🏫 Classes: 8:00-14:35h
+🏢 Atenció: dilluns-divendres 8:00-14:00h  
+📋 Secretaria: dilluns-divendres 9:00-13:00h
+
+CURSOS: ESO (1r-4t), Batxillerat (1r-2n), FP (GM i GS)
+
+REGLES:
+✓ Respostes breus i clares
+✓ Només info verificada dels arxius
+✓ Si no saps algo → indica-ho clarament
+✓ Emojis moderats (màx 2 per resposta)
+✗ NO inventis informació
+✗ NO temes aliens a l'institut
+
+INFORMACIÓ ARXIUS INSTITUT:
+{self._get_compact_files_info()}
+
+Respon SEMPRE en CATALÀ. Sigues útil i directe."""
             
             # Iniciar chat
             self.chat = self.model.start_chat(
@@ -295,10 +309,7 @@ class RiquerChatBot:
                     },
                     {
                         "role": "model", 
-                        "parts": ["Entès! Sóc Riquer, l'assistent virtual de l'Institut Alexandre de Riquer. "
-                                 "He processat tota la informació de l'institut. "
-                                 "Puc ajudar-te amb qualsevol consulta sobre l'institut. "
-                                 "En què et puc ajudar avui?"]
+                        "parts": ["Hola! Sóc Riquer, l'assistent de l'Institut Alexandre de Riquer. En què et puc ajudar? 😊"]
                     }
                 ]
             )
