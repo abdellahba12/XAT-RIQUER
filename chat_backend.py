@@ -240,7 +240,7 @@ class RiquerChatBot:
             ]
             
             self.model = genai.GenerativeModel(
-                'gemini-2.5-flash-lite',
+                'gemini-2.0-flash-lite',
                 generation_config=generation_config,
                 safety_settings=safety_settings
             )
