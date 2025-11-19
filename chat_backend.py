@@ -102,6 +102,7 @@ class RiquerChatBot:
         self.file_contents = []  # Contingut dels arxius com a text
         self.request_count = 0  # Comptador de peticions
         self.last_request_time = None
+        self.min_request_interval = 3.0  # AUGMENTAT A 3 SEGONS per evitar rate limits
         self.initialize_directories()
         self.initialize_files()
         self.initialize_chat()
@@ -337,7 +338,7 @@ Respon SEMPRE en CATALÀ. Sigues útil i directe."""
         self.last_request_time = current_time
         self.request_count += 1
     
-    @retry_with_exponential_backoff(max_retries=3, initial_delay=2)
+    @retry_with_exponential_backoff(max_retries=1, initial_delay=3)
     def _send_to_gemini(self, message: str) -> str:
         """Envia missatge a Gemini amb gestió d'errors"""
         if not self.chat:
