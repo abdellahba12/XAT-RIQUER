@@ -1,6 +1,8 @@
 // Variables globales
 let chatMessages = [];
 let teachersList = [];
+let lastRequestTime = 0;
+const MIN_REQUEST_INTERVAL = 2000; // 2 segons entre peticions
 
 // Elementos del DOM
 const chatForm = document.getElementById('chat-form');
@@ -168,8 +170,20 @@ function hideTypingIndicator() {
     typingIndicator.style.display = 'none';
 }
 
-// Función para obtener respuesta del bot
+// Función para obtener respuesta del bot (AMB RATE LIMITING)
 async function getBotResponse(message) {
+    // Esperar si l'última petició va ser fa menys de 2 segons
+    const now = Date.now();
+    const timeSinceLastRequest = now - lastRequestTime;
+    
+    if (timeSinceLastRequest < MIN_REQUEST_INTERVAL) {
+        const waitTime = MIN_REQUEST_INTERVAL - timeSinceLastRequest;
+        console.log(`⏳ Esperant ${waitTime}ms abans d'enviar...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime));
+    }
+    
+    lastRequestTime = Date.now();
+    
     try {
         const response = await fetch('/api/chat', {
             method: 'POST',
