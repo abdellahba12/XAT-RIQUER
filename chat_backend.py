@@ -10,7 +10,6 @@ from datetime import datetime
 import time
 from functools import wraps
 import unicodedata
-import unicodedata
 
 # Configuració de logging
 logging.basicConfig(level=logging.INFO)
@@ -47,19 +46,12 @@ def normalize_name_to_email(name: str) -> str:
     
     return name
 
-# Configuració de API
-api_key = os.environ.get("API_GEMINI")
-if not api_key:
-    logger.warning("No se encontró API_GEMINI en las variables de entorno")
-
-genai.configure(api_key=api_key)
-
-# Decorador per gestionar límits de peticions amb retry
+# Decorador per gestionar límits de peticions amb retry MILLORAT
 def retry_with_exponential_backoff(
-    max_retries=3,
-    initial_delay=2,
+    max_retries=3,  # CANVIAT: de 1 a 3 reintentos
+    initial_delay=5,  # CANVIAT: de 3 a 5 segons
     exponential_base=2,
-    max_delay=32
+    max_delay=60  # CANVIAT: de 32 a 60 segons màxim
 ):
     """Decorador que reintenta amb backoff exponencial si hi ha error 429"""
     def decorator(func):
@@ -101,6 +93,7 @@ class RiquerChatBot:
         self.chat = None
         self.file_contents = []  # Contingut dels arxius com a text
         self.request_count = 0  # Comptador de peticions
+        self.last_request_time = 0  # Temps de l'última petició
         self.initialize_directories()
         self.initialize_files()
         self.initialize_chat()
@@ -221,7 +214,7 @@ class RiquerChatBot:
             }
     
     def initialize_chat(self):
-        """Inicializa el chat con Gemini"""
+        """Inicializa el chat con Gemini - SENSE CRIDAR API"""
         try:
             # Crear model amb configuració de seguretat relaxada
             generation_config = {
@@ -239,78 +232,112 @@ class RiquerChatBot:
             ]
             
             self.model = genai.GenerativeModel(
-                'gemini-2.0-flash-lite',  # 30 RPM, 1M TPM - molt millor quota
+                'gemini-2.0-flash-lite',
                 generation_config=generation_config,
                 safety_settings=safety_settings
             )
             
-            # Contexto del sistema en catalán con los archivos como texto
-            context = f"""Ets Riquer, assistent virtual de l'Institut Alexandre de Riquer de Calaf.
+            # IMPORTANT: NO inicialitzar el chat aquí per evitar crida a API
+            # Es crearà quan es rebi el primer missatge
+            self.chat = None
             
-            PERSONALITAT: Amable, proper, eficient. SEMPRE en CATALÀ.
-            
-            FUNCIONS:
-            - Informar sobre l'institut (horaris, cursos, contactes)
-            - Ajudar a contactar professors → suggereix botó "Sol·licitar reunió"
-            - Justificar faltes → suggereix botó "Justificar falta"
-            - Resoldre dubtes acadèmics i administratius
-            
-            CONTACTE:
-            📍 C. Sant Joan Bta. de la Salle 6-8, 08280 Calaf
-            📞 93 868 04 14
-            📧 a8043395@xtec.cat
-            📧 abdellahbaghalbachiri@gmail.com (consergeria)
-            🌐 inscalaf.cat
-            
-            HORARIS:
-            🏫 Classes: 8:00-14:35h
-            🏢 Atenció: dilluns-divendres 8:00-14:00h
-            📋 Secretaria: dilluns-divendres 9:00-13:00h
-            
-            CURSOS: ESO (1r-4t), Batxillerat (1r-2n), FP (GM i GS)
-            
-            REGLES:
-            ✓ Respostes breus i clares
-            ✓ Només info verificada dels arxius
-            ✓ Si no saps algo → indica-ho clarament
-            ✓ Emojis moderats (màx 2 per resposta)
-            ✗ NO inventis informació
-            ✗ NO temes aliens a l'institut
-            
-            INFORMACIÓ DELS ARXIUS DE L'INSTITUT:
-            {"".join(self.file_contents) if self.file_contents else "No s'han pogut carregar els arxius"}
-            
-            Respon SEMPRE en CATALÀ. Sigues útil i directe."""
-            
-            # Iniciar chat
-            self.chat = self.model.start_chat(
-                history=[
-                    {
-                        "role": "user", 
-                        "parts": [context]
-                    },
-                    {
-                        "role": "model", 
-                        "parts": ["Entès! Sóc Riquer, l'assistent virtual de l'Institut Alexandre de Riquer. "
-                                 "He processat tota la informació de l'institut. "
-                                 "Puc ajudar-te amb qualsevol consulta sobre l'institut. "
-                                 "En què et puc ajudar avui?"]
-                    }
-                ]
-            )
-            
-            logger.info(f"✅ Chat inicializado con {len(self.file_contents)} archivos cargados")
+            logger.info(f"✅ Model inicializado (sin chat activo todavía) con {len(self.file_contents)} archivos cargados")
             
         except Exception as e:
-            logger.error(f"❌ Error inicializando el chat: {str(e)}")
+            logger.error(f"❌ Error inicializando el modelo: {str(e)}")
             self.model = None
             self.chat = None
     
-    @retry_with_exponential_backoff(max_retries=1, initial_delay=3)
+    def _ensure_chat_initialized(self):
+        """Assegura que el chat estigui inicialitzat abans d'usar-lo"""
+        if self.chat is not None:
+            return
+        
+        if self.model is None:
+            raise Exception("Model no inicialitzat")
+        
+        # Contexto del sistema en catalán con los archivos como texto
+        context = f"""Ets Riquer, assistent virtual de l'Institut Alexandre de Riquer de Calaf.
+        
+        PERSONALITAT: Amable, proper, eficient. SEMPRE en CATALÀ.
+        
+        FUNCIONS:
+        - Informar sobre l'institut (horaris, cursos, contactes)
+        - Ajudar a contactar professors → suggereix botó "Sol·licitar reunió"
+        - Justificar faltes → suggereix botó "Justificar falta"
+        - Resoldre dubtes acadèmics i administratius
+        
+        CONTACTE:
+        📍 C. Sant Joan Bta. de la Salle 6-8, 08280 Calaf
+        📞 93 868 04 14
+        📧 a8043395@xtec.cat
+        📧 abdellahbaghalbachiri@gmail.com (consergeria)
+        🌐 inscalaf.cat
+        
+        HORARIS:
+        🏫 Classes: 8:00-14:35h
+        🏢 Atenció: dilluns-divendres 8:00-14:00h
+        📋 Secretaria: dilluns-divendres 9:00-13:00h
+        
+        CURSOS: ESO (1r-4t), Batxillerat (1r-2n), FP (GM i GS)
+        
+        REGLES:
+        ✓ Respostes breus i clares
+        ✓ Només info verificada dels arxius
+        ✓ Si no saps algo → indica-ho clarament
+        ✓ Emojis moderats (màx 2 per resposta)
+        ✗ NO inventis informació
+        ✗ NO temes aliens a l'institut
+        
+        INFORMACIÓ DELS ARXIUS DE L'INSTITUT:
+        {"".join(self.file_contents) if self.file_contents else "No s'han pogut carregar els arxius"}
+        
+        Respon SEMPRE en CATALÀ. Sigues útil i directe."""
+        
+        # Iniciar chat
+        self.chat = self.model.start_chat(
+            history=[
+                {
+                    "role": "user", 
+                    "parts": [context]
+                },
+                {
+                    "role": "model", 
+                    "parts": ["Entès! Sóc Riquer, l'assistent virtual de l'Institut Alexandre de Riquer. "
+                             "He processat tota la informació de l'institut. "
+                             "Puc ajudar-te amb qualsevol consulta sobre l'institut. "
+                             "En què et puc ajudar avui?"]
+                }
+            ]
+        )
+        
+        logger.info("✅ Chat inicialitzat correctament")
+    
+    def _apply_rate_limit(self):
+        """Aplica rate limiting manual: mínim 2 segons entre peticions"""
+        now = time.time()
+        time_since_last = now - self.last_request_time
+        
+        if time_since_last < 2.0:  # Mínim 2 segons
+            wait_time = 2.0 - time_since_last
+            logger.info(f"⏳ Rate limit: esperant {wait_time:.1f}s")
+            time.sleep(wait_time)
+        
+        self.last_request_time = time.time()
+        self.request_count += 1
+        logger.info(f"📊 Petició #{self.request_count}")
+    
+    @retry_with_exponential_backoff(max_retries=3, initial_delay=5)
     def _send_to_gemini(self, message: str) -> str:
-        """Envia missatge a Gemini amb gestió d'errors"""
+        """Envia missatge a Gemini amb gestió d'errors MILLORADA"""
+        # Assegurar que el chat estigui inicialitzat
+        self._ensure_chat_initialized()
+        
         if not self.chat:
             raise Exception("Chat no inicialitzat")
+        
+        # Aplicar rate limiting
+        self._apply_rate_limit()
         
         response = self.chat.send_message(message)
         return response.text
@@ -318,9 +345,6 @@ class RiquerChatBot:
     def process_message(self, message: str, user_data: Dict) -> str:
         """Procesa un mensaje del usuario"""
         try:
-            if not self.chat:
-                return "Ho sento, hi ha hagut un problema tècnic. Si us plau, recarrega la pàgina."
-            
             # Construir mensaje completo
             full_message = f"""IMPORTANT: Respon NOMÉS en català. Consulta la informació dels arxius per donar respostes precises.
 
@@ -540,10 +564,16 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
         health_report = "🔍 **Informe d'Estat del Sistema**\n\n"
         
         # Estado del chat
-        if status['chat_initialized'] and status['model_available']:
-            health_report += "✅ Chat: Operatiu\n"
+        if status['model_available']:
+            health_report += "✅ Model: Operatiu\n"
         else:
-            health_report += "❌ Chat: Error d'inicialització\n"
+            health_report += "❌ Model: Error d'inicialització\n"
+        
+        # Chat (pot no estar inicialitzat fins al primer missatge)
+        if status['chat_initialized']:
+            health_report += "✅ Chat: Actiu\n"
+        else:
+            health_report += "⚪ Chat: Pendent (s'iniciarà amb primer missatge)\n"
         
         # Archivos
         health_report += f"📁 Arxius carregats: {status['files_loaded']}\n"
