@@ -7,6 +7,21 @@ import logging
 from functools import wraps
 import secrets
 
+# Añade esto al inicio de tu app.py
+request_count = {}
+
+@app.before_request
+def log_request():
+    import datetime
+    now = datetime.datetime.now()
+    path = request.path
+    
+    if path not in request_count:
+        request_count[path] = 0
+    request_count[path] += 1
+    
+    print(f"🌐 [{now}] {request.method} {path} - Total: {request_count[path]}")
+
 # Configurar Flask
 app = Flask(__name__, 
     static_folder='static',
