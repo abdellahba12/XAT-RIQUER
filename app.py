@@ -7,6 +7,16 @@ import logging
 from functools import wraps
 import secrets
 
+
+
+# Configurar Flask
+app = Flask(__name__, 
+    static_folder='static',
+    template_folder='templates'
+)
+CORS(app)
+
+
 # Añade esto al inicio de tu app.py
 request_count = {}
 
@@ -21,13 +31,6 @@ def log_request():
     request_count[path] += 1
     
     print(f"🌐 [{now}] {request.method} {path} - Total: {request_count[path]}")
-
-# Configurar Flask
-app = Flask(__name__, 
-    static_folder='static',
-    template_folder='templates'
-)
-CORS(app)
 
 # Configurar clau secreta
 app.secret_key = os.environ.get('SECRET_KEY', secrets.token_hex(32))
