@@ -16,6 +16,10 @@ import unicodedata
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+logger.info(f"GEMINI_API_KEY valor real: {repr(os.getenv('GEMINI_API_KEY'))}")
+
+
 # Configuració de API
 api_key = os.environ.get("API_GEMINI")
 if not api_key:
