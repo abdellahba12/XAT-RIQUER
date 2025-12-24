@@ -1,12 +1,16 @@
 import google.generativeai as genai
 import requests
+import tempfile
 import os
+import json
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
+import re
+from datetime import datetime
 import time
 from functools import wraps
 import unicodedata
-from datetime import datetime
+import unicodedata
 
 # Configuració de logging
 logging.basicConfig(level=logging.INFO)
@@ -15,48 +19,77 @@ logger = logging.getLogger(__name__)
 # Configuració de API
 api_key = os.environ.get("API_GEMINI")
 if not api_key:
-    logger.error("❌ API_GEMINI no configurada")
-else:
-    logger.info("✅ API_GEMINI trobada")
+    logger.warning("No se encontró API_GEMINI en las variables de entorno")
 
 genai.configure(api_key=api_key)
 
-# MODEL ACTUALITZAT - Gemini 1.5 Flash (millor quota gratuïta)
-MODEL_NAME = "gemini-1.5-flash"
-
 def normalize_name_to_email(name: str) -> str:
-    """Normalitza nom a email"""
+    """
+    Normalitza un nom de professor a format d'email sense accents
+    
+    Exemples:
+        'Jordi Pipó' -> 'jordi.pipo'
+        'Anna Bresolí' -> 'anna.bresoli'
+        'Natàlia Muñoz' -> 'natalia.munoz'
+    """
+    # Convertir a minúscules
     name = name.lower()
+    
+    # Normalitzar Unicode i eliminar diacrítics (accents)
     name = unicodedata.normalize('NFD', name)
     name = ''.join(char for char in name if unicodedata.category(char) != 'Mn')
+    
+    # Substituir espais per punts
     name = name.replace(' ', '.')
+    
+    # Eliminar tots els caràcters que no siguin alfanumèrics o punts
     name = ''.join(char for char in name if char.isalnum() or char == '.')
+    
     return name
 
-def retry_with_exponential_backoff(max_retries=2, initial_delay=3, exponential_base=2, max_delay=30):
-    """Decorador retry amb backoff exponencial"""
+# Configuració de API
+api_key = os.environ.get("API_GEMINI")
+if not api_key:
+    logger.warning("No se encontró API_GEMINI en las variables de entorno")
+
+genai.configure(api_key=api_key)
+
+# Decorador per gestionar límits de peticions amb retry
+def retry_with_exponential_backoff(
+    max_retries=3,
+    initial_delay=2,
+    exponential_base=2,
+    max_delay=32
+):
+    """Decorador que reintenta amb backoff exponencial si hi ha error 429"""
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
             delay = initial_delay
+            
             for attempt in range(max_retries + 1):
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
                     error_str = str(e).lower()
-                    if any(k in error_str for k in ["429", "resource exhausted", "quota", "rate limit"]):
+                    
+                    # Detectar error 429 o límit de quota
+                    if any(keyword in error_str for keyword in ["429", "resource exhausted", "quota", "rate limit"]):
                         if attempt < max_retries:
-                            wait_time = delay + (attempt * 0.5)
-                            logger.warning(f"⚠️ Límit. Reintent {attempt + 1}/{max_retries} en {wait_time:.1f}s")
+                            wait_time = delay + (attempt * 0.5)  # Afegir jitter
+                            logger.warning(f"⚠️ Límit de peticions assolit. Reintent {attempt + 1}/{max_retries} després de {wait_time:.1f}s")
                             time.sleep(wait_time)
                             delay = min(delay * exponential_base, max_delay)
                             continue
                         else:
-                            logger.error(f"❌ Màxim reintents assolit")
-                            return "Ho sento, sistema saturat. Espera uns segons i torna-ho a intentar. 🙏"
+                            logger.error(f"❌ Màxim de reintents assolit després de {max_retries} intents")
+                            # Retornar missatge amigable
+                            return "Ho sento molt, el sistema està temporalment saturat degut a l'alta demanda. Si us plau, espera uns segons i torna-ho a intentar. 🙏"
                     else:
-                        logger.error(f"❌ Error: {e}")
+                        # Si no és error 429, llançar immediatament
+                        logger.error(f"Error inesperat: {e}")
                         raise
+            
             return None
         return wrapper
     return decorator
@@ -66,18 +99,19 @@ class RiquerChatBot:
     def __init__(self):
         self.model = None
         self.chat = None
-        self.file_contents = []
-        self.request_count = 0
-        self.last_request_time = 0
+        self.file_contents = []  # Contingut dels arxius com a text
+        self.request_count = 0  # Comptador de peticions
         self.initialize_directories()
         self.initialize_files()
         self.initialize_chat()
     
     def initialize_directories(self):
+        """Crear directorios necesarios"""
         os.makedirs('drive_files', exist_ok=True)
         os.makedirs('logs', exist_ok=True)
     
     def initialize_files(self):
+        """Descarga els arxius CSV/TXT i els guarda com a text"""
         file_urls = [
             "https://drive.google.com/uc?export=download&id=1-Stsv68nDGxH2kDy_idcGM6FoXYMO3I8",
             "https://drive.google.com/uc?export=download&id=1kOjm0jHpF-LqtXYC7uUC1HJAV7DQPBsy",
@@ -86,70 +120,110 @@ class RiquerChatBot:
             "https://drive.google.com/uc?export=download&id=1neJFgTH0GWO5HbL64V6Fro0r1SKw8mFw",
         ]
         
-        successful = 0
+        successful_downloads = 0
+        
         for i, url in enumerate(file_urls):
             try:
+                logger.info(f"Descargando archivo {i+1} de {len(file_urls)}")
                 response = requests.get(url, timeout=30)
                 response.raise_for_status()
                 
-                if response.content.startswith(b'<!DOCTYPE html>') or len(response.content) < 100:
+                # Verificar si es una página HTML de error
+                if response.content.startswith(b'<!DOCTYPE html>'):
+                    logger.warning(f"Archivo {i+1}: Recibido HTML en lugar del archivo")
                     continue
                 
+                # Verificar tamaño mínimo
+                if len(response.content) < 100:
+                    logger.warning(f"Archivo {i+1}: Tamaño muy pequeño ({len(response.content)} bytes)")
+                    continue
+                
+                # Intentar decodificar el contenido
                 try:
                     content = response.content.decode('utf-8')
-                except:
+                except UnicodeDecodeError:
                     try:
                         content = response.content.decode('latin-1')
                     except:
                         content = response.content.decode('utf-8', errors='ignore')
                 
+                # Guardar contenido
                 self.file_contents.append(f"\n--- Archivo {i+1} ---\n{content}")
-                successful += 1
+                successful_downloads += 1
+                logger.info(f"Archivo {i+1} cargado correctamente")
+                
             except Exception as e:
-                logger.error(f"Error archivo {i+1}: {e}")
+                logger.error(f"Error cargando archivo {url}: {str(e)}")
+                continue
         
-        logger.info(f"📁 Arxius carregats: {successful}/{len(file_urls)}")
+        logger.info(f"Archivos cargados exitosamente: {successful_downloads}/{len(file_urls)}")
     
     def get_teachers_list(self) -> List[Dict]:
-        return [
+        """Obtiene la lista de profesores para el formulario"""
+        teachers = [
             {'name': 'Jordi Pipó', 'email': 'jordi.pipo@inscalaf.cat'},
             {'name': 'Anna Bresolí', 'email': 'anna.bresoli@inscalaf.cat'},
             {'name': 'Gerard Corominas', 'email': 'gerard.corominas@inscalaf.cat'},
             {'name': 'Natàlia Muñoz', 'email': 'natalia.munoz@inscalaf.cat'}
         ]
+        
+        return teachers
     
     def send_email(self, subject: str, body: str, recipients: List[str]) -> Dict:
+        """Envía emails via Mailgun API"""
         try:
             mailgun_api_key = os.environ.get("MAILGUN_API_KEY")
             mailgun_domain = os.environ.get("MAILGUN_DOMAIN")
             
             if not mailgun_api_key or not mailgun_domain:
-                return {"status": "error", "error": "Mailgun no disponible"}
+                logger.error("Faltan variables de Mailgun")
+                return {
+                    "status": "error",
+                    "error": "Configuració de Mailgun no disponible"
+                }
             
+            data = {
+                'from': 'Institut Alexandre de Riquer <riquer@inscalaf.cat>',
+                'to': recipients,
+                'subject': subject,
+                'text': body
+            }
+            
+            # Enviar via Mailgun API
             response = requests.post(
                 f"https://api.mailgun.net/v3/{mailgun_domain}/messages",
                 auth=("api", mailgun_api_key),
-                data={
-                    'from': 'Institut Alexandre de Riquer <riquer@inscalaf.cat>',
-                    'to': recipients,
-                    'subject': subject,
-                    'text': body
-                },
+                data=data,
                 timeout=15
             )
             
             if response.status_code == 200:
-                return {"status": "success", "subject": subject, "recipients": recipients}
+                logger.info(f"Correo enviado correctamente a: {recipients}")
+                return {
+                    "status": "success",
+                    "subject": subject,
+                    "body": body,
+                    "sender": "riquer@inscalaf.cat",
+                    "recipients": recipients,
+                }
             else:
-                return {"status": "error", "error": f"Error {response.status_code}"}
+                logger.error(f"Mailgun error: {response.status_code} - {response.text}")
+                return {
+                    "status": "error",
+                    "error": f"Error enviant email: {response.status_code}"
+                }
+                
         except Exception as e:
-            return {"status": "error", "error": str(e)}
+            logger.error(f"Error enviando correo: {str(e)}")
+            return {
+                "status": "error",
+                "error": str(e)
+            }
     
     def initialize_chat(self):
-        """Inicialitza el chat amb Gemini - MODEL ACTUALITZAT"""
+        """Inicializa el chat con Gemini"""
         try:
-            logger.info(f"🚀 Inicialitzant model: {MODEL_NAME}")
-            
+            # Crear model amb configuració de seguretat relaxada
             generation_config = {
                 "temperature": 0.7,
                 "top_p": 0.95,
@@ -164,123 +238,147 @@ class RiquerChatBot:
                 {"category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE"},
             ]
             
-            # USAR MODEL FIX - sense buscar automàticament
             self.model = genai.GenerativeModel(
-                MODEL_NAME,
+                'gemini-2.0-flash',  # 30 RPM, 1M TPM - molt millor quota
                 generation_config=generation_config,
                 safety_settings=safety_settings
             )
             
-            # Context del sistema
+            # Contexto del sistema en catalán con los archivos como texto
             context = f"""Ets Riquer, assistent virtual de l'Institut Alexandre de Riquer de Calaf.
-
-PERSONALITAT: Amable, proper, eficient. SEMPRE en CATALÀ.
-
-FUNCIONS:
-- Informar sobre l'institut (horaris, cursos, contactes)
-- Ajudar a contactar professors → suggereix botó "Sol·licitar reunió"
-- Justificar faltes → suggereix botó "Justificar falta"
-- Resoldre dubtes acadèmics i administratius
-
-CONTACTE:
-📍 C. Sant Joan Bta. de la Salle 6-8, 08280 Calaf
-📞 93 868 04 14
-📧 a8043395@xtec.cat
-🌐 inscalaf.cat
-
-HORARIS:
-🏫 Classes: 8:00-14:35h
-🏢 Atenció: dilluns-divendres 8:00-14:00h
-📋 Secretaria: dilluns-divendres 9:00-13:00h
-
-CURSOS: ESO (1r-4t), Batxillerat (1r-2n), FP (GM i GS)
-
-REGLES:
-✓ Respostes breus i clares
-✓ Només info verificada dels arxius
-✓ Si no saps algo → indica-ho clarament
-✓ Emojis moderats (màx 2 per resposta)
-✗ NO inventis informació
-✗ NO temes aliens a l'institut
-
-INFORMACIÓ DELS ARXIUS DE L'INSTITUT:
-{"".join(self.file_contents) if self.file_contents else "No s'han pogut carregar els arxius"}
-
-Respon SEMPRE en CATALÀ. Sigues útil i directe."""
             
-            # Iniciar chat amb historial
+            PERSONALITAT: Amable, proper, eficient. SEMPRE en CATALÀ.
+            
+            FUNCIONS:
+            - Informar sobre l'institut (horaris, cursos, contactes)
+            - Ajudar a contactar professors → suggereix botó "Sol·licitar reunió"
+            - Justificar faltes → suggereix botó "Justificar falta"
+            - Resoldre dubtes acadèmics i administratius
+            
+            CONTACTE:
+            📍 C. Sant Joan Bta. de la Salle 6-8, 08280 Calaf
+            📞 93 868 04 14
+            📧 a8043395@xtec.cat
+            📧 abdellahbaghalbachiri@gmail.com (consergeria)
+            🌐 inscalaf.cat
+            
+            HORARIS:
+            🏫 Classes: 8:00-14:35h
+            🏢 Atenció: dilluns-divendres 8:00-14:00h
+            📋 Secretaria: dilluns-divendres 9:00-13:00h
+            
+            CURSOS: ESO (1r-4t), Batxillerat (1r-2n), FP (GM i GS)
+            
+            REGLES:
+            ✓ Respostes breus i clares
+            ✓ Només info verificada dels arxius
+            ✓ Si no saps algo → indica-ho clarament
+            ✓ Emojis moderats (màx 2 per resposta)
+            ✗ NO inventis informació
+            ✗ NO temes aliens a l'institut
+            
+            INFORMACIÓ DELS ARXIUS DE L'INSTITUT:
+            {"".join(self.file_contents) if self.file_contents else "No s'han pogut carregar els arxius"}
+            
+            Respon SEMPRE en CATALÀ. Sigues útil i directe."""
+            
+            # Iniciar chat
             self.chat = self.model.start_chat(
                 history=[
-                    {"role": "user", "parts": [context]},
-                    {"role": "model", "parts": ["Entès! Sóc Riquer, l'assistent virtual de l'Institut Alexandre de Riquer. En què et puc ajudar?"]}
+                    {
+                        "role": "user", 
+                        "parts": [context]
+                    },
+                    {
+                        "role": "model", 
+                        "parts": ["Entès! Sóc Riquer, l'assistent virtual de l'Institut Alexandre de Riquer. "
+                                 "He processat tota la informació de l'institut. "
+                                 "Puc ajudar-te amb qualsevol consulta sobre l'institut. "
+                                 "En què et puc ajudar avui?"]
+                    }
                 ]
             )
             
-            logger.info(f"✅ Chat inicialitzat correctament amb {MODEL_NAME}")
+            logger.info(f"✅ Chat inicializado con {len(self.file_contents)} archivos cargados")
             
         except Exception as e:
-            logger.error(f"❌ Error inicialitzant chat: {e}")
+            logger.error(f"❌ Error inicializando el chat: {str(e)}")
             self.model = None
             self.chat = None
     
-    def _apply_rate_limit(self):
-        """Rate limiting manual: mínim 2 segons entre peticions"""
-        now = time.time()
-        if now - self.last_request_time < 2.0:
-            time.sleep(2.0 - (now - self.last_request_time))
-        self.last_request_time = time.time()
-        self.request_count += 1
-    
-    @retry_with_exponential_backoff(max_retries=2, initial_delay=3)
+    @retry_with_exponential_backoff(max_retries=1, initial_delay=3)
     def _send_to_gemini(self, message: str) -> str:
-        """Envia missatge a Gemini"""
+        """Envia missatge a Gemini amb gestió d'errors"""
         if not self.chat:
             raise Exception("Chat no inicialitzat")
         
-        self._apply_rate_limit()
         response = self.chat.send_message(message)
         return response.text
     
     def process_message(self, message: str, user_data: Dict) -> str:
-        """Procesa un missatge de l'usuari"""
+        """Procesa un mensaje del usuario"""
         try:
             if not self.chat:
                 return "Ho sento, hi ha hagut un problema tècnic. Si us plau, recarrega la pàgina."
             
-            # Verificar si és formulari
+            # Construir mensaje completo
+            full_message = f"""IMPORTANT: Respon NOMÉS en català. Consulta la informació dels arxius per donar respostes precises.
+
+Usuari: {user_data.get('nom', 'Desconegut')}
+Pregunta: {message}
+
+RECORDA: 
+- Consulta SEMPRE la informació dels arxius abans de respondre
+- Si la informació no està disponible, indica-ho clarament
+- Respon sempre en CATALÀ
+- Sigues amable i professional"""
+            
+            # Verificar si es un formulario
             if self._is_form_submission(message):
                 return self._handle_form_submission(message, user_data)
             
-            # Construir missatge
-            full_message = f"""Usuari: {user_data.get('nom', 'Desconegut')}
-Pregunta: {message}
-
-Respon en CATALÀ, breu i directe."""
-            
+            # Enviar a Gemini amb retry automàtic
             response_text = self._send_to_gemini(full_message)
             
-            if response_text:
-                return self._format_response(response_text)
-            else:
-                return "Ho sento, no he pogut processar la teva consulta. Torna-ho a intentar."
+            return self._format_response(response_text)
             
         except Exception as e:
-            logger.error(f"❌ Error: {e}")
-            return "Ho sento, hi ha hagut un error. Torna-ho a intentar. 🙏"
+            error_msg = str(e)
+            logger.error(f"❌ Error procesando mensaje: {error_msg}")
+            
+            # Retornar missatge específic si és error de quota
+            if "temporalment saturat" in error_msg.lower():
+                return error_msg
+            else:
+                return "Ho sento, hi ha hagut un error processant la teva consulta. Si us plau, torna-ho a intentar en uns segons. 🙏"
     
     def _is_form_submission(self, message: str) -> bool:
-        return any(k in message for k in ["Justificar falta", "Contactar professor"])
+        """Detecta si el mensaje es un formulario"""
+        form_keywords = [
+            "Justificar falta - Alumne:",
+            "Contactar professor",
+            "- Assumpte:",
+            "Missatge:"
+        ]
+        return any(keyword in message for keyword in form_keywords)
     
     def _handle_form_submission(self, message: str, user_data: Dict) -> str:
-        if "Justificar falta" in message:
-            return self._handle_absence_form(message, user_data)
-        elif "Contactar professor" in message:
-            return self._handle_teacher_contact_form(message, user_data)
-        return "No processat"
+        """Controla els formularis i envia mails"""
+        try:
+            if "Justificar falta" in message:
+                return self._handle_absence_form(message, user_data)
+            elif "Contactar professor" in message:
+                return self._handle_teacher_contact_form(message, user_data)
+            else:
+                return "No s'ha pogut processar el formulari. Si us plau, torna-ho a intentar."
+        except Exception as e:
+            logger.error(f"Error manejando formulario: {str(e)}")
+            return f"⚠️ Error al processar el formulari: {str(e)}"
     
     def _handle_absence_form(self, message: str, user_data: Dict) -> str:
-        """Procesa formulari de faltes"""
+        """Procesa el formulari de faltes"""
         try:
+            # Extreure dades
             lines = message.split('\n')
             data = {}
             
@@ -303,16 +401,18 @@ Respon en CATALÀ, breu i directe."""
             data_falta = data.get('data', '').strip()
             motiu = data.get('motiu', '').strip()
             
+            # Validar dades
             if not all([alumne, curs, data_falta, motiu]):
                 return "⚠️ Si us plau, completa tots els camps requerits"
             
+            # Construir mail
             subject = f"Justificació de falta - {alumne} ({curs})"
             body = f"""Benvolguts,
 
 Sol·licito justificar la falta d'assistència següent:
 
 Alumne/a: {alumne}
-Curs: {curs}
+Curs: {curs}  
 Data de la falta: {data_falta}
 Motiu: {motiu}
 
@@ -324,20 +424,22 @@ Contacte: {user_data.get('contacte', '')}
 Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
 {datetime.now().strftime('%d/%m/%Y %H:%M')}"""
             
+            # Intentar enviar email
             result = self.send_email(subject, body, ["abdellahbaghalbachiri@gmail.com"])
             
             if result["status"] == "success":
-                return f"✅ Justificació enviada correctament!"
+                return f"✅ Justificació enviada correctament!\n\nDestinatari: abdellahbaghalbachiri@gmail.com\n\nEn breu rebràs confirmació de recepció."
             else:
-                return f"❌ Error al enviar. Truca al 93 868 04 14"
+                return f"❌ Error al enviar la justificació.\n\nAlternatives:\n• Trucar al 93 868 04 14\n• Enviar email manualment a abdellahbaghalbachiri@gmail.com"
                 
         except Exception as e:
-            logger.error(f"Error en justificació: {e}")
-            return f"⚠️ Error al processar la justificació"
+            logger.error(f"Error en justificació: {str(e)}")
+            return f"⚠️ Error al processar la justificació: {str(e)}"
     
     def _handle_teacher_contact_form(self, message: str, user_data: Dict) -> str:
-        """Procesa formulari de contacte amb professor"""
+        """Procesa el formulario de contacto con profesor"""
         try:
+            # Extreure dades
             professor_name = ""
             subject = ""
             message_content = ""
@@ -352,6 +454,8 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
                 start = message.find("Assumpte: ") + len("Assumpte: ")
                 end = message.find(",", start)
                 if end == -1:
+                    end = message.find("\n", start)
+                if end == -1:
                     end = len(message)
                 subject = message[start:end].strip()
             
@@ -362,14 +466,20 @@ Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
                     end = len(message)
                 message_content = message[start:end].strip()
             
+            # Buscar email del professor a la llista
             teacher = next((t for t in self.get_teachers_list() if t['name'] == professor_name), None)
             
             if teacher:
+                # Usar email de la llista (ja està sense accents)
                 professor_email = teacher['email']
             else:
+                # Generar email automàticament (eliminar accents)
                 email_name = normalize_name_to_email(professor_name)
                 professor_email = f"{email_name}@inscalaf.cat"
             
+            logger.info(f"📧 Email generat: {professor_name} -> {professor_email}")
+            
+            # Construir email
             email_subject = f"{subject} - {user_data.get('nom', 'Família')}"
             email_body = f"""Benvolgut/da {professor_name},
 
@@ -383,30 +493,88 @@ Atentament,
 Enviat automàticament des del sistema de l'Institut Alexandre de Riquer
 {datetime.now().strftime('%d/%m/%Y %H:%M')}"""
             
+            # Intentar enviar email
             result = self.send_email(email_subject, email_body, [professor_email])
             
             if result["status"] == "success":
-                return f"✅ Missatge enviat a {professor_email}!"
+                return f"✅ Missatge enviat correctament!\n\nDestinatari: {professor_email}\n\nEl professor/a rebrà el teu missatge i et respondrà al teu correu."
             else:
-                return f"❌ Error al enviar. Email directe: {professor_email}"
+                return f"❌ Error al enviar el missatge.\n\nAlternatives:\n• Trucar al 93 868 04 14\n• Enviar email directament a {professor_email}"
                 
         except Exception as e:
-            logger.error(f"Error contactant professor: {e}")
-            return f"⚠️ Error al contactar amb el professor"
+            logger.error(f"Error contactando profesor: {str(e)}")
+            return f"⚠️ Error al contactar amb el professor: {str(e)}"
     
     def _format_response(self, response: str) -> str:
-        response = response.replace('**', '').replace('*', '')
+        """Formatea la respuesta para mejorar la presentación"""
+        # Eliminar asteriscos de formato markdown
+        response = response.replace('**', '')
+        response = response.replace('*', '')
+        
+        # Asegurar salto de línea al final
+        if not response.endswith('\n'):
+            response += '\n'
+        
         return response.strip()
     
     def get_system_status(self) -> Dict:
-        return {
+        """Estado del sistema"""
+        status = {
             'chat_initialized': self.chat is not None,
             'model_available': self.model is not None,
-            'model_name': MODEL_NAME,
             'files_loaded': len(self.file_contents),
+            'api_key_configured': bool(os.environ.get("API_GEMINI")),
+            'mailgun_configured': all([
+                os.environ.get("MAILGUN_API_KEY"),
+                os.environ.get("MAILGUN_DOMAIN")
+            ]),
             'total_requests': self.request_count
         }
+        
+        return status
+    
+    def health_check(self) -> str:
+        """Comprobación de salud del sistema"""
+        status = self.get_system_status()
+        
+        health_report = "🔍 **Informe d'Estat del Sistema**\n\n"
+        
+        # Estado del chat
+        if status['chat_initialized'] and status['model_available']:
+            health_report += "✅ Chat: Operatiu\n"
+        else:
+            health_report += "❌ Chat: Error d'inicialització\n"
+        
+        # Archivos
+        health_report += f"📁 Arxius carregats: {status['files_loaded']}\n"
+        
+        # Configuración
+        health_report += f"{'✅' if status['api_key_configured'] else '❌'} API Gemini: {'Configurada' if status['api_key_configured'] else 'No configurada'}\n"
+        health_report += f"{'✅' if status['mailgun_configured'] else '❌'} Mailgun: {'Configurat' if status['mailgun_configured'] else 'No configurat'}\n"
+        health_report += f"📊 Total peticions: {status['total_requests']}\n"
+        
+        return health_report
 
-
-# Crear instància global
+# Crear instancia global
 bot = RiquerChatBot()
+
+# Funciones de utilidad para Flask
+def process_user_message(message: str, user_name: str, user_contact: str) -> str:
+    """Procesa mensajes para la interfaz Flask"""
+    user_data = {
+        'nom': user_name,
+        'contacte': user_contact
+    }
+    return bot.process_message(message, user_data)
+
+def get_system_health() -> str:
+    """Obtiene el estado de salud del sistema"""
+    return bot.health_check()
+
+def get_teachers_for_form() -> List[Dict]:
+    """Obtiene la lista de profesores para formularios"""
+    return bot.get_teachers_list()
+
+def get_bot_status() -> Dict:
+    """Obtiene el estado detallado del bot"""
+    return bot.get_system_status()
