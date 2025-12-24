@@ -25,7 +25,7 @@ api_key = os.environ.get("API_GEMINI")
 if not api_key:
     logger.warning("No se encontró API_GEMINI en las variables de entorno")
 
-genai.configure(key=api_key)
+genai.configure(api_key=api_key)
 
 def normalize_name_to_email(name: str) -> str:
     """
