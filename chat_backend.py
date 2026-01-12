@@ -168,7 +168,7 @@ class RiquerChatBot:
             {'name': 'Jordi Pipó', 'email': 'jordi.pipo@inscalaf.cat'},
             {'name': 'Anna Bresolí', 'email': 'anna.bresoli@inscalaf.cat'},
             {'name': 'Gerard Corominas', 'email': 'gerard.corominas@inscalaf.cat'},
-            {'name': 'Natàlia Muñoz', 'email': 'natalia.munoz@inscalaf.cat'}
+            {'name': 'Roger Codina', 'email': 'roger.codina@inscalaf.cat'}
         ]
         
         return teachers
