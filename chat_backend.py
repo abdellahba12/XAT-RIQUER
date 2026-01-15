@@ -1,5 +1,13 @@
-# Copyright (c) 2026 Abdellah Baghal. Todos los derechos reservados.
-# Copyright (c) 2026 Abdellah Baghal. Todos los derechos reservados.
+"""
+XAT-RIQUER - Sistema de Xat Intel·ligent
+Copyright © 2026 [Abdellah Baghal]. Tots els drets reservats.
+
+Desenvolupat per: [Abdellah Baghal]
+Institut: Alexandre de Riquer, Calaf
+
+Aquest programari és propietat privada i està protegit per lleis de copyright.
+"""
+
 
 
 import google.generativeai as genai
