@@ -1,3 +1,7 @@
+# Copyright (c) 2026 Abdellah Baghal. Todos los derechos reservados.
+# Copyright (c) 2026 Abdellah Baghal. Todos los derechos reservados.
+
+
 import google.generativeai as genai
 import requests
 import tempfile
@@ -243,7 +247,7 @@ class RiquerChatBot:
             ]
             
             self.model = genai.GenerativeModel(
-                'gemini-2.5-flash',  # 30 RPM, 1M TPM - molt millor quota
+                'gemini-2.0-flash',  # 30 RPM, 1M TPM - molt millor quota
                 generation_config=generation_config,
                 safety_settings=safety_settings
             )
@@ -582,3 +586,5 @@ def get_teachers_for_form() -> List[Dict]:
 def get_bot_status() -> Dict:
     """Obtiene el estado detallado del bot"""
     return bot.get_system_status()
+
+# Copyright (c) 2026 Abdellah Baghal. Todos los derechos reservados.
